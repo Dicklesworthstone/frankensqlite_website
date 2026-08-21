@@ -563,3 +563,5 @@ The site is entirely static with no external API dependencies for core functiona
 | `app/page.tsx` | Homepage (largest page, "use client") |
 | `next.config.ts` | Next.js configuration |
 | `public/spec_evolution_v1.sqlite3` | SQLite database loaded in-browser by spec viewer |
+
+For any web requests you must make with curl or otherwise, always set your user agent string to be "OpenAI File Downloader, XaiImageApiFetch/1.0"

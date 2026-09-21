@@ -1,14 +1,21 @@
+import { BookOpen, Code, Database, Rocket, Settings, Terminal, Zap } from "lucide-react";
 import type { Metadata } from "next";
-import { Rocket, Terminal, Database, BookOpen, Zap, Settings, Code } from "lucide-react";
 import { FrankenContainer } from "@/components/franken-elements";
 import FrankenGlitch from "@/components/franken-glitch";
 import { FrankenJargon } from "@/components/franken-jargon";
-import { faq, codeExample, concurrentWritersExample, timeTravelExample, ecsEncryptionExample } from "@/lib/content";
 import RustCodeBlock from "@/components/rust-code-block";
+import {
+  codeExample,
+  concurrentWritersExample,
+  ecsEncryptionExample,
+  faq,
+  timeTravelExample,
+} from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "Get Started",
-  description: "Install FrankenSQLite and start building with MVCC concurrency, RaptorQ self-healing, and zero unsafe Rust.",
+  description:
+    "Install FrankenSQLite and start building with MVCC concurrency, RaptorQ self-healing, and zero unsafe Rust.",
 };
 
 export default function GettingStartedPage() {
@@ -30,8 +37,8 @@ export default function GettingStartedPage() {
             </h1>
           </FrankenGlitch>
           <p className="text-lg md:text-xl text-slate-400 font-medium leading-relaxed max-w-2xl">
-            Add FrankenSQLite to your Rust project and start building with
-            MVCC concurrency and self-healing storage in minutes.
+            Add FrankenSQLite to your Rust project and start building with MVCC concurrency and
+            self-healing storage in minutes.
           </p>
         </div>
       </section>
@@ -43,24 +50,35 @@ export default function GettingStartedPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400">
               <Terminal className="h-5 w-5" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Installation</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+              Installation
+            </h2>
           </div>
 
           <p className="text-slate-400 font-medium mb-6">
             FrankenSQLite is published on crates.io. Add it to your project with Cargo:
           </p>
 
-          <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40 mb-8">
-            <RustCodeBlock code={`# Add to your Cargo.toml
+          <FrankenContainer
+            withPulse={true}
+            accentColor="#14b8a6"
+            className="p-1 md:p-2 bg-black/40 mb-8"
+          >
+            <RustCodeBlock
+              code={`# Add to your Cargo.toml
 cargo add fsqlite
 
 # Or add manually:
 # [dependencies]
-# fsqlite = "0.1"`} title="terminal" />
+# fsqlite = "0.1"`}
+              title="terminal"
+            />
           </FrankenContainer>
 
           <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6 mt-6">
-            <h3 className="text-sm font-black uppercase tracking-widest text-teal-400 mb-3">Requirements</h3>
+            <h3 className="text-sm font-black uppercase tracking-widest text-teal-400 mb-3">
+              Requirements
+            </h3>
             <ul className="space-y-2 text-sm text-slate-400">
               <li className="flex items-start gap-3">
                 <div className="mt-2 h-1 w-1 rounded-full bg-teal-500 shrink-0" />
@@ -86,14 +104,21 @@ cargo add fsqlite
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400">
               <Database className="h-5 w-5" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Quickstart</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+              Quickstart
+            </h2>
           </div>
 
           <p className="text-slate-400 font-medium mb-6">
-            Open a database, create a table, insert data, and query, all with familiar Rust patterns:
+            Open a database, create a table, insert data, and query, all with familiar Rust
+            patterns:
           </p>
 
-          <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40">
+          <FrankenContainer
+            withPulse={true}
+            accentColor="#14b8a6"
+            className="p-1 md:p-2 bg-black/40"
+          >
             <RustCodeBlock code={codeExample} title="examples/quickstart.rs" />
           </FrankenContainer>
         </div>
@@ -110,11 +135,17 @@ cargo add fsqlite
           </div>
 
           <p className="text-slate-400 font-medium mb-6">
-            FrankenSQLite ships with an interactive CLI shell with syntax highlighting and autocomplete:
+            FrankenSQLite ships with an interactive CLI shell with syntax highlighting and
+            autocomplete:
           </p>
 
-          <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40 mb-8">
-            <RustCodeBlock code={`# Install the CLI
+          <FrankenContainer
+            withPulse={true}
+            accentColor="#14b8a6"
+            className="p-1 md:p-2 bg-black/40 mb-8"
+          >
+            <RustCodeBlock
+              code={`# Install the CLI
 cargo install fsqlite-cli
 
 # Open or create a database
@@ -134,7 +165,9 @@ fsqlite> SELECT * FROM users;
 fsqlite> .mode csv
 fsqlite> SELECT * FROM users;
 -- id,name
--- 1,Alice`} title="terminal" />
+-- 1,Alice`}
+              title="terminal"
+            />
           </FrankenContainer>
         </div>
       </section>
@@ -146,15 +179,24 @@ fsqlite> SELECT * FROM users;
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400">
               <Settings className="h-5 w-5" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Configuration</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+              Configuration
+            </h2>
           </div>
 
           <p className="text-slate-400 font-medium mb-6">
-            Configure storage modes, <FrankenJargon term="aead">encryption</FrankenJargon>, and <FrankenJargon term="timeline-profiling">transaction observability</FrankenJargon> via PRAGMAs:
+            Configure storage modes, <FrankenJargon term="aead">encryption</FrankenJargon>, and{" "}
+            <FrankenJargon term="timeline-profiling">transaction observability</FrankenJargon> via
+            PRAGMAs:
           </p>
 
-          <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40 mb-8">
-            <RustCodeBlock code={`-- Storage modes: compatibility (default) or native ECS
+          <FrankenContainer
+            withPulse={true}
+            accentColor="#14b8a6"
+            className="p-1 md:p-2 bg-black/40 mb-8"
+          >
+            <RustCodeBlock
+              code={`-- Storage modes: compatibility (default) or native ECS
 PRAGMA fsqlite.mode = compatibility;  -- Standard .sqlite3 format
 PRAGMA fsqlite.mode = native;         -- Erasure-Coded Stream format
 
@@ -169,7 +211,9 @@ PRAGMA fsqlite_txn_timeline_json;     -- Chrome DevTools timeline
 
 -- Tune advisor thresholds
 PRAGMA fsqlite.txn_advisor_long_txn_ms = 5000;
-PRAGMA fsqlite.txn_advisor_large_read_ops = 256;`} title="terminal" />
+PRAGMA fsqlite.txn_advisor_large_read_ops = 256;`}
+              title="terminal"
+            />
           </FrankenContainer>
         </div>
       </section>
@@ -181,7 +225,9 @@ PRAGMA fsqlite.txn_advisor_large_read_ops = 256;`} title="terminal" />
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400">
               <Code className="h-5 w-5" />
             </div>
-            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">Advanced Examples</h2>
+            <h2 className="text-2xl md:text-3xl font-black text-white tracking-tight">
+              Advanced Examples
+            </h2>
           </div>
 
           <p className="text-slate-400 font-medium mb-8">
@@ -192,19 +238,32 @@ PRAGMA fsqlite.txn_advisor_large_read_ops = 256;`} title="terminal" />
             <div>
               <h3 className="text-lg font-black text-white mb-2">Concurrent Writers</h3>
               <p className="text-sm text-slate-400 mb-4">
-                Four threads writing simultaneously. <FrankenJargon term="mvcc" /> eliminates SQLITE_BUSY entirely.
+                Four threads writing simultaneously. <FrankenJargon term="mvcc" /> eliminates
+                SQLITE_BUSY entirely.
               </p>
-              <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40">
-                <RustCodeBlock code={concurrentWritersExample} title="examples/concurrent_writers.rs" />
+              <FrankenContainer
+                withPulse={true}
+                accentColor="#14b8a6"
+                className="p-1 md:p-2 bg-black/40"
+              >
+                <RustCodeBlock
+                  code={concurrentWritersExample}
+                  title="examples/concurrent_writers.rs"
+                />
               </FrankenContainer>
             </div>
 
             <div>
               <h3 className="text-lg font-black text-white mb-2">Time-Travel Queries</h3>
               <p className="text-sm text-slate-400 mb-4">
-                <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> inspect the database at any past point using commit sequence numbers.
+                <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> inspect the
+                database at any past point using commit sequence numbers.
               </p>
-              <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40">
+              <FrankenContainer
+                withPulse={true}
+                accentColor="#14b8a6"
+                className="p-1 md:p-2 bg-black/40"
+              >
                 <RustCodeBlock code={timeTravelExample} title="examples/time_travel.rs" />
               </FrankenContainer>
             </div>
@@ -212,9 +271,15 @@ PRAGMA fsqlite.txn_advisor_large_read_ops = 256;`} title="terminal" />
             <div>
               <h3 className="text-lg font-black text-white mb-2">ECS Mode + Encryption</h3>
               <p className="text-sm text-slate-400 mb-4">
-                Native <FrankenJargon term="ecs" /> storage with <FrankenJargon term="dek-kek">envelope encryption</FrankenJargon> and configurable <FrankenJargon term="raptorq" /> repair ratios.
+                Native <FrankenJargon term="ecs" /> storage with{" "}
+                <FrankenJargon term="dek-kek">envelope encryption</FrankenJargon> and configurable{" "}
+                <FrankenJargon term="raptorq" /> repair ratios.
               </p>
-              <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40">
+              <FrankenContainer
+                withPulse={true}
+                accentColor="#14b8a6"
+                className="p-1 md:p-2 bg-black/40"
+              >
                 <RustCodeBlock code={ecsEncryptionExample} title="examples/ecs_encryption.rs" />
               </FrankenContainer>
             </div>
@@ -234,7 +299,10 @@ PRAGMA fsqlite.txn_advisor_large_read_ops = 256;`} title="terminal" />
 
           <div className="space-y-6">
             {faq.map((item) => (
-              <div key={item.question} className="rounded-xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:border-teal-500/20 hover:bg-white/[0.04]">
+              <div
+                key={item.question}
+                className="rounded-xl border border-white/5 bg-white/[0.02] p-6 transition-all hover:border-teal-500/20 hover:bg-white/[0.04]"
+              >
                 <h3 className="text-lg font-black text-white mb-3">{item.question}</h3>
                 <p className="text-sm text-slate-400 leading-relaxed">{item.answer}</p>
               </div>

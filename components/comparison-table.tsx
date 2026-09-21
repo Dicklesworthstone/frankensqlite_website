@@ -1,16 +1,34 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { comparisonData } from "@/lib/content";
 import { cn } from "@/lib/utils";
 import { FrankenContainer } from "./franken-elements";
 import FrankenGlitch from "./franken-glitch";
-import { motion } from "framer-motion";
 
 const ENGINES = ["FrankenSQLite", "C SQLite", "libSQL", "DuckDB"] as const;
 
 function statusStyle(value: string) {
-  const isPositive = ["First-class", "Enforced", "Built-in", "Yes", "Page-level", "Row-level", "Native", "20+ years", "Mature"].includes(value);
-  const isPartial = ["Enhanced WAL", "Extended WAL", "Extended", "WAL-only", "Growing", "Early", "Basic"].includes(value);
+  const isPositive = [
+    "First-class",
+    "Enforced",
+    "Built-in",
+    "Yes",
+    "Page-level",
+    "Row-level",
+    "Native",
+    "20+ years",
+    "Mature",
+  ].includes(value);
+  const isPartial = [
+    "Enhanced WAL",
+    "Extended WAL",
+    "Extended",
+    "WAL-only",
+    "Growing",
+    "Early",
+    "Basic",
+  ].includes(value);
   const isNegative = ["Manual", "No", "Single writer"].includes(value);
   const isNA = value.startsWith("N/A");
   return { isPositive, isPartial, isNegative, isNA };
@@ -58,10 +76,12 @@ function MobileCard({ row }: { row: (typeof comparisonData)[number] }) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-2">
         {ENGINES.map((engine, i) => (
           <div key={engine} className="flex flex-col">
-            <span className={cn(
-              "text-[10px] font-bold uppercase tracking-wider mb-0.5",
-              i === 0 ? "text-teal-400" : "text-slate-500",
-            )}>
+            <span
+              className={cn(
+                "text-[10px] font-bold uppercase tracking-wider mb-0.5",
+                i === 0 ? "text-teal-400" : "text-slate-500",
+              )}
+            >
               {engine}
             </span>
             <span className={statusColor(values[i])}>
@@ -83,20 +103,36 @@ export default function ComparisonTable() {
         <table className="w-full text-left">
           <thead>
             <tr className="border-b border-white/5 bg-white/[0.02]">
-              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">Feature</th>
-              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-teal-400">
-                <FrankenGlitch trigger="hover" intensity="low">FrankenSQLite</FrankenGlitch>
+              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">
+                Feature
               </th>
-              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">C SQLite</th>
-              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">libSQL</th>
-              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">DuckDB</th>
+              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-teal-400">
+                <FrankenGlitch trigger="hover" intensity="low">
+                  FrankenSQLite
+                </FrankenGlitch>
+              </th>
+              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">
+                C SQLite
+              </th>
+              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">
+                libSQL
+              </th>
+              <th className="px-4 py-4 text-xs font-bold uppercase tracking-widest text-slate-500">
+                DuckDB
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/5">
             {comparisonData.map((row) => (
-              <motion.tr key={row.feature} whileHover={{ backgroundColor: "rgba(20, 184, 166, 0.05)" }} className="transition-colors group">
+              <motion.tr
+                key={row.feature}
+                whileHover={{ backgroundColor: "rgba(20, 184, 166, 0.05)" }}
+                className="transition-colors group"
+              >
                 <td className="px-4 py-3 text-sm font-medium text-slate-300 group-hover:text-white transition-colors">
-                  <FrankenGlitch trigger="hover" intensity="low" className="w-full">{row.feature}</FrankenGlitch>
+                  <FrankenGlitch trigger="hover" intensity="low" className="w-full">
+                    {row.feature}
+                  </FrankenGlitch>
                 </td>
                 <StatusCell value={row.frankensqlite} />
                 <StatusCell value={row.csqlite} />

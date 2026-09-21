@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import VizContainer from "@/components/viz/viz-container";
-import Stepper, { type Step } from "@/components/viz/stepper";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
 import { FrankenJargon } from "@/components/franken-jargon";
+import Stepper, { type Step } from "@/components/viz/stepper";
+import VizContainer from "@/components/viz/viz-container";
 import { VizExposition } from "./viz-exposition";
 
 /* ------------------------------------------------------------------ */
@@ -21,7 +21,11 @@ const LAYERS: LayerDef[] = [
   { name: "Parser", crates: ["fsqlite-parser", "fsqlite-ast"], color: "#38bdf8" },
   { name: "Planner", crates: ["fsqlite-planner"], color: "#a78bfa" },
   { name: "VDBE Compiler", crates: ["fsqlite-vdbe"], color: "#f472b6" },
-  { name: "B-tree + MVCC", crates: ["fsqlite-btree", "fsqlite-pager", "fsqlite-mvcc"], color: "#fb923c" },
+  {
+    name: "B-tree + MVCC",
+    crates: ["fsqlite-btree", "fsqlite-pager", "fsqlite-mvcc"],
+    color: "#fb923c",
+  },
   { name: "Storage", crates: ["fsqlite-wal", "fsqlite-vfs"], color: "#34d399" },
   { name: "Result", crates: ["fsqlite", "fsqlite-core"], color: "#14b8a6" },
 ];
@@ -124,8 +128,7 @@ const STEPS: Step[] = [
   },
   {
     label: "VDBE Compiler",
-    description:
-      "The query plan is compiled into VDBE bytecode opcodes by fsqlite-vdbe.",
+    description: "The query plan is compiled into VDBE bytecode opcodes by fsqlite-vdbe.",
   },
   {
     label: "B-tree + MVCC",
@@ -177,12 +180,8 @@ function DataPanel({
   const labelColor = side === "input" ? "text-slate-500" : "text-teal-500";
 
   return (
-    <div
-      className={`rounded-lg border ${borderColor} bg-black/60 p-2 md:p-3 flex-1 min-w-0`}
-    >
-      <div
-        className={`text-[9px] font-black uppercase tracking-[0.2em] ${labelColor} mb-1.5`}
-      >
+    <div className={`rounded-lg border ${borderColor} bg-black/60 p-2 md:p-3 flex-1 min-w-0`}>
+      <div className={`text-[9px] font-black uppercase tracking-[0.2em] ${labelColor} mb-1.5`}>
         {label}
       </div>
       <pre className="text-[11px] leading-relaxed text-slate-300 font-mono whitespace-pre-wrap break-words">
@@ -209,9 +208,7 @@ function LayerBand({
     <motion.div
       layout={!prefersReducedMotion}
       className={`relative rounded-lg border transition-colors duration-300 overflow-hidden ${
-        isActive
-          ? "border-teal-500/50 bg-black/50"
-          : "border-white/5 bg-black/20"
+        isActive ? "border-teal-500/50 bg-black/50" : "border-white/5 bg-black/20"
       }`}
       animate={{
         paddingTop: isActive ? 12 : 6,
@@ -227,7 +224,11 @@ function LayerBand({
           className="absolute left-0 top-0 bottom-0 w-0.5 bg-teal-500"
           initial={{ opacity: prefersReducedMotion ? 0.7 : 0 }}
           animate={prefersReducedMotion ? { opacity: 0.7 } : { opacity: [0.3, 1, 0.3] }}
-          transition={prefersReducedMotion ? { duration: 0 } : { duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0 }
+              : { duration: 1.5, repeat: Infinity, ease: "easeInOut" }
+          }
         />
       )}
 
@@ -262,8 +263,16 @@ function LayerBand({
         {isActive && (
           <motion.div
             className="h-2 w-2 rounded-full bg-teal-500 shrink-0 ml-auto"
-            animate={prefersReducedMotion ? { opacity: 0.7 } : { opacity: [0.4, 1, 0.4], scale: [0.8, 1.2, 0.8] }}
-            transition={prefersReducedMotion ? { duration: 0 } : { duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+            animate={
+              prefersReducedMotion
+                ? { opacity: 0.7 }
+                : { opacity: [0.4, 1, 0.4], scale: [0.8, 1.2, 0.8] }
+            }
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
+            }
           />
         )}
       </div>
@@ -316,9 +325,7 @@ function LayerBand({
                 className="mt-2 flex items-start gap-2 px-3 py-2 rounded-md border border-teal-500/20 bg-teal-500/5"
               >
                 <span className="text-teal-500 text-xs shrink-0 mt-px">{"\u2192"}</span>
-                <span className="text-xs text-teal-300 font-mono">
-                  {stepData.highlight}
-                </span>
+                <span className="text-xs text-teal-300 font-mono">{stepData.highlight}</span>
               </motion.div>
             )}
           </motion.div>
@@ -345,14 +352,10 @@ function QueryInputBlock() {
         SQL Query
       </div>
       <pre className="text-sm md:text-base font-mono text-teal-300 leading-relaxed">
-        <span className="text-slate-500">{">"}</span>{" "}
-        <span className="text-sky-400">SELECT</span>{" "}
-        <span className="text-slate-300">*</span>{" "}
-        <span className="text-sky-400">FROM</span>{" "}
-        <span className="text-amber-300">users</span>{" "}
-        <span className="text-sky-400">WHERE</span>{" "}
-        <span className="text-amber-300">id</span>{" "}
-        <span className="text-slate-300">=</span>{" "}
+        <span className="text-slate-500">{">"}</span> <span className="text-sky-400">SELECT</span>{" "}
+        <span className="text-slate-300">*</span> <span className="text-sky-400">FROM</span>{" "}
+        <span className="text-amber-300">users</span> <span className="text-sky-400">WHERE</span>{" "}
+        <span className="text-amber-300">id</span> <span className="text-slate-300">=</span>{" "}
         <span className="text-emerald-400">42</span>
       </pre>
     </motion.div>
@@ -380,9 +383,7 @@ export default function QueryPipeline() {
     >
       <div className="p-3 md:p-6 flex flex-col gap-4">
         {/* Query input banner (visible on step 0) */}
-        <AnimatePresence>
-          {currentStep === 0 && <QueryInputBlock />}
-        </AnimatePresence>
+        <AnimatePresence>{currentStep === 0 && <QueryInputBlock />}</AnimatePresence>
 
         {/* Compact query reminder when past step 0 */}
         <AnimatePresence>
@@ -395,8 +396,7 @@ export default function QueryPipeline() {
               className="overflow-hidden"
             >
               <div className="text-[10px] font-mono text-slate-600 mb-1 truncate">
-                <span className="text-slate-700">{">"}</span>{" "}
-                SELECT * FROM users WHERE id = 42
+                <span className="text-slate-700">{">"}</span> SELECT * FROM users WHERE id = 42
               </div>
             </motion.div>
           )}
@@ -426,24 +426,46 @@ export default function QueryPipeline() {
         </div>
       </div>
 
-      <VizExposition 
+      <VizExposition
         whatItIs={
           <>
-            <p>You are watching the exact execution pipeline of a single SQL query as it flows from raw text down to physical disk bytes and back up again.</p>
-            <p>FrankenSQLite is not a monolith. It is composed of 26 independent Rust crates organized into strictly defined architectural layers.</p>
+            <p>
+              You are watching the exact execution pipeline of a single SQL query as it flows from
+              raw text down to physical disk bytes and back up again.
+            </p>
+            <p>
+              FrankenSQLite is not a monolith. It is composed of 26 independent Rust crates
+              organized into strictly defined architectural layers.
+            </p>
           </>
         }
         howToUse={
           <>
             <p>Follow the animation through the 6 stages.</p>
-            <p>First, the raw text is parsed into an Abstract Syntax Tree (AST). The Query Planner analyzes this AST and compiles it into an imperative Bytecode program.</p>
-            <div>The <FrankenJargon term="vdbe">VDBE</FrankenJargon> virtual machine executes this bytecode, calling into the <FrankenJargon term="btree">B-Tree</FrankenJargon> storage layer. The B-Tree requests pages from the Pager, which finally translates those into raw 4KB byte arrays fetched from the VFS (Virtual File System).</div>
+            <p>
+              First, the raw text is parsed into an Abstract Syntax Tree (AST). The Query Planner
+              analyzes this AST and compiles it into an imperative Bytecode program.
+            </p>
+            <div>
+              The <FrankenJargon term="vdbe">VDBE</FrankenJargon> virtual machine executes this
+              bytecode, calling into the <FrankenJargon term="btree">B-Tree</FrankenJargon> storage
+              layer. The B-Tree requests pages from the Pager, which finally translates those into
+              raw 4KB byte arrays fetched from the VFS (Virtual File System).
+            </div>
           </>
         }
         whyItMatters={
           <>
-            <p>Legacy C SQLite is notoriously monolithic, making it incredibly difficult to modify or test specific components in isolation.</p>
-            <div>Because FrankenSQLite uses a strict workspace of 26 decoupled crates, it is inherently composable. You can swap out the VFS to write to S3, or you can drop the SQL parser entirely and use the <FrankenJargon term="mvcc">MVCC</FrankenJargon> B-Tree directly as a high-performance embedded key-value store.</div>
+            <p>
+              Legacy C SQLite is notoriously monolithic, making it incredibly difficult to modify or
+              test specific components in isolation.
+            </p>
+            <div>
+              Because FrankenSQLite uses a strict workspace of 26 decoupled crates, it is inherently
+              composable. You can swap out the VFS to write to S3, or you can drop the SQL parser
+              entirely and use the <FrankenJargon term="mvcc">MVCC</FrankenJargon> B-Tree directly
+              as a high-performance embedded key-value store.
+            </div>
           </>
         }
       />

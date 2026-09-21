@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Play, Pause } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSite } from "@/lib/site-state";
 
 export interface Step {
@@ -99,9 +99,7 @@ export default function Stepper({
             </div>
             <div className="text-sm font-bold text-white">{step?.label}</div>
             {step?.description && !compact && (
-              <div className="text-xs text-slate-400 mt-1 leading-relaxed">
-                {step.description}
-              </div>
+              <div className="text-xs text-slate-400 mt-1 leading-relaxed">{step.description}</div>
             )}
           </motion.div>
         </AnimatePresence>
@@ -134,11 +132,7 @@ export default function Stepper({
             aria-label={isPlaying ? "Pause" : "Play"}
             aria-pressed={isPlaying}
           >
-            {isPlaying ? (
-              <Pause className="h-5 w-5" />
-            ) : (
-              <Play className="h-5 w-5" />
-            )}
+            {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
           </button>
         )}
 

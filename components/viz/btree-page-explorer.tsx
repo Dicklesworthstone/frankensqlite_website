@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import VizContainer from "@/components/viz/viz-container";
-import Stepper, { type Step } from "@/components/viz/stepper";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useCallback, useMemo, useState } from "react";
 import { FrankenJargon } from "@/components/franken-jargon";
+import Stepper, { type Step } from "@/components/viz/stepper";
+import VizContainer from "@/components/viz/viz-container";
 import { VizExposition } from "./viz-exposition";
 
 /* ------------------------------------------------------------------ */
@@ -39,7 +39,11 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "root",
     label: "Root Page",
     type: "root",
-    cells: [{ id: 25, value: "" }, { id: 50, value: "" }, { id: 75, value: "" }],
+    cells: [
+      { id: 25, value: "" },
+      { id: 50, value: "" },
+      { id: 75, value: "" },
+    ],
     x: 50,
     y: 8,
   },
@@ -47,7 +51,10 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "int-left",
     label: "Internal A",
     type: "internal",
-    cells: [{ id: 12, value: "" }, { id: 25, value: "" }],
+    cells: [
+      { id: 12, value: "" },
+      { id: 25, value: "" },
+    ],
     x: 25,
     y: 35,
   },
@@ -55,7 +62,10 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "int-right",
     label: "Internal B",
     type: "internal",
-    cells: [{ id: 37, value: "" }, { id: 50, value: "" }],
+    cells: [
+      { id: 37, value: "" },
+      { id: 50, value: "" },
+    ],
     x: 75,
     y: 35,
   },
@@ -63,7 +73,10 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "leaf-1",
     label: "Leaf 1",
     type: "leaf",
-    cells: [{ id: 10, value: "Eve" }, { id: 12, value: "Dan" }],
+    cells: [
+      { id: 10, value: "Eve" },
+      { id: 12, value: "Dan" },
+    ],
     x: 12,
     y: 65,
   },
@@ -71,7 +84,10 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "leaf-2",
     label: "Leaf 2",
     type: "leaf",
-    cells: [{ id: 25, value: "Carol" }, { id: 30, value: "Grace" }],
+    cells: [
+      { id: 25, value: "Carol" },
+      { id: 30, value: "Grace" },
+    ],
     x: 38,
     y: 65,
   },
@@ -79,7 +95,10 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "leaf-3",
     label: "Leaf 3",
     type: "leaf",
-    cells: [{ id: 37, value: "Frank" }, { id: 42, value: "Alice" }],
+    cells: [
+      { id: 37, value: "Frank" },
+      { id: 42, value: "Alice" },
+    ],
     x: 62,
     y: 65,
   },
@@ -87,7 +106,10 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "leaf-4",
     label: "Leaf 4",
     type: "leaf",
-    cells: [{ id: 50, value: "Hank" }, { id: 55, value: "Ivy" }],
+    cells: [
+      { id: 50, value: "Hank" },
+      { id: 55, value: "Ivy" },
+    ],
     x: 88,
     y: 65,
   },
@@ -109,15 +131,18 @@ const EDGES: [string, string][] = [
 const STEPS: Step[] = [
   {
     label: "Page anatomy",
-    description: "Data lives in 4KB B-tree pages. The root holds separator keys, internal nodes route traversal, and leaf nodes store rows.",
+    description:
+      "Data lives in 4KB B-tree pages. The root holds separator keys, internal nodes route traversal, and leaf nodes store rows.",
   },
   {
     label: "Binary search in root",
-    description: "Looking for key 42. Root keys are [25, 50, 75]. Since 42 falls between 25 and 50, follow the right child pointer.",
+    description:
+      "Looking for key 42. Root keys are [25, 50, 75]. Since 42 falls between 25 and 50, follow the right child pointer.",
   },
   {
     label: "Follow pointer to internal node",
-    description: "Internal B holds keys [37, 50]. Key 42 is between 37 and 50, so follow the pointer to Leaf 3.",
+    description:
+      "Internal B holds keys [37, 50]. Key 42 is between 37 and 50, so follow the pointer to Leaf 3.",
   },
   {
     label: "Leaf found: key 42",
@@ -129,15 +154,18 @@ const STEPS: Step[] = [
   },
   {
     label: "Copy-on-Write",
-    description: "The original leaf is never modified. A shadow copy is created with the updated cell. The original stays intact for other readers.",
+    description:
+      "The original leaf is never modified. A shadow copy is created with the updated cell. The original stays intact for other readers.",
   },
   {
     label: "Pointer chain update",
-    description: "Internal B gets its own shadow copy with an updated child pointer to the new leaf. The root gets a new copy pointing to the new internal.",
+    description:
+      "Internal B gets its own shadow copy with an updated child pointer to the new leaf. The root gets a new copy pointing to the new internal.",
   },
   {
     label: "Two trees coexist",
-    description: "Old tree (dimmed) serves existing readers. New tree (teal) serves the committing transaction. This is MVCC: multiple versions, zero conflicts.",
+    description:
+      "Old tree (dimmed) serves existing readers. New tree (teal) serves the committing transaction. This is MVCC: multiple versions, zero conflicts.",
   },
 ];
 
@@ -191,7 +219,10 @@ function getStepVis(step: number): StepVis {
     case 3:
       // Leaf found
       base.highlighted = { root: "active", "int-right": "active", "leaf-3": "found" };
-      base.activeEdges = [["root", "int-right"], ["int-right", "leaf-3"]];
+      base.activeEdges = [
+        ["root", "int-right"],
+        ["int-right", "leaf-3"],
+      ];
       base.callout = "id=42, name='Alice'. Found!";
       return base;
 
@@ -210,7 +241,10 @@ function getStepVis(step: number): StepVis {
           id: "leaf-3-cow",
           label: "Leaf 3'",
           type: "leaf",
-          cells: [{ id: 37, value: "Frank" }, { id: 42, value: "Bob" }],
+          cells: [
+            { id: 37, value: "Frank" },
+            { id: 42, value: "Bob" },
+          ],
           x: 68,
           y: 65,
           isShadow: true,
@@ -227,7 +261,10 @@ function getStepVis(step: number): StepVis {
           id: "leaf-3-cow",
           label: "Leaf 3'",
           type: "leaf",
-          cells: [{ id: 37, value: "Frank" }, { id: 42, value: "Bob" }],
+          cells: [
+            { id: 37, value: "Frank" },
+            { id: 42, value: "Bob" },
+          ],
           x: 68,
           y: 65,
           isShadow: true,
@@ -236,7 +273,10 @@ function getStepVis(step: number): StepVis {
           id: "int-right-cow",
           label: "Internal B'",
           type: "internal",
-          cells: [{ id: 37, value: "" }, { id: 50, value: "" }],
+          cells: [
+            { id: 37, value: "" },
+            { id: 50, value: "" },
+          ],
           x: 81,
           y: 35,
           isShadow: true,
@@ -245,13 +285,20 @@ function getStepVis(step: number): StepVis {
           id: "root-cow",
           label: "Root'",
           type: "root",
-          cells: [{ id: 25, value: "" }, { id: 50, value: "" }, { id: 75, value: "" }],
+          cells: [
+            { id: 25, value: "" },
+            { id: 50, value: "" },
+            { id: 75, value: "" },
+          ],
           x: 56,
           y: 8,
           isShadow: true,
         },
       ];
-      base.activeEdges = [["root-cow", "int-right-cow"], ["int-right-cow", "leaf-3-cow"]];
+      base.activeEdges = [
+        ["root-cow", "int-right-cow"],
+        ["int-right-cow", "leaf-3-cow"],
+      ];
       base.callout = "Pointer chain: Root' → Internal B' → Leaf 3'";
       return base;
 
@@ -263,7 +310,10 @@ function getStepVis(step: number): StepVis {
           id: "leaf-3-cow",
           label: "Leaf 3'",
           type: "leaf",
-          cells: [{ id: 37, value: "Frank" }, { id: 42, value: "Bob" }],
+          cells: [
+            { id: 37, value: "Frank" },
+            { id: 42, value: "Bob" },
+          ],
           x: 68,
           y: 65,
           isShadow: true,
@@ -272,7 +322,10 @@ function getStepVis(step: number): StepVis {
           id: "int-right-cow",
           label: "Internal B'",
           type: "internal",
-          cells: [{ id: 37, value: "" }, { id: 50, value: "" }],
+          cells: [
+            { id: 37, value: "" },
+            { id: 50, value: "" },
+          ],
           x: 81,
           y: 35,
           isShadow: true,
@@ -281,13 +334,21 @@ function getStepVis(step: number): StepVis {
           id: "root-cow",
           label: "Root'",
           type: "root",
-          cells: [{ id: 25, value: "" }, { id: 50, value: "" }, { id: 75, value: "" }],
+          cells: [
+            { id: 25, value: "" },
+            { id: 50, value: "" },
+            { id: 75, value: "" },
+          ],
           x: 56,
           y: 8,
           isShadow: true,
         },
       ];
-      base.activeEdges = [["root-cow", "int-right-cow"], ["int-right-cow", "leaf-3-cow"], ["root-cow", "int-left"]];
+      base.activeEdges = [
+        ["root-cow", "int-right-cow"],
+        ["int-right-cow", "leaf-3-cow"],
+        ["root-cow", "int-left"],
+      ];
       base.callout = "Both versions exist simultaneously: this is MVCC";
       return base;
   }
@@ -329,27 +390,25 @@ function PageBlock({
   const x = (node.x / 100) * 900 - PAGE_W / 2;
   const y = (node.y / 100) * 380;
 
-  const glowColor =
-    node.isShadow
-      ? "rgba(20,184,166,0.5)"
-      : highlight === "found"
-        ? "rgba(34,197,94,0.5)"
-        : highlight === "scanning"
-          ? "rgba(250,204,21,0.4)"
-          : highlight === "active"
-            ? "rgba(56,189,248,0.3)"
-            : "transparent";
+  const glowColor = node.isShadow
+    ? "rgba(20,184,166,0.5)"
+    : highlight === "found"
+      ? "rgba(34,197,94,0.5)"
+      : highlight === "scanning"
+        ? "rgba(250,204,21,0.4)"
+        : highlight === "active"
+          ? "rgba(56,189,248,0.3)"
+          : "transparent";
 
-  const borderColor =
-    node.isShadow
-      ? "#14b8a6"
-      : highlight === "found"
-        ? "#22c55e"
-        : highlight === "scanning"
-          ? "#facc15"
-          : highlight === "active"
-            ? "#38bdf8"
-            : "rgba(255,255,255,0.1)";
+  const borderColor = node.isShadow
+    ? "#14b8a6"
+    : highlight === "found"
+      ? "#22c55e"
+      : highlight === "scanning"
+        ? "#facc15"
+        : highlight === "active"
+          ? "#38bdf8"
+          : "rgba(255,255,255,0.1)";
 
   const opacity = dimmed ? 0.3 : 1;
 
@@ -576,9 +635,7 @@ export default function BTreePageExplorer() {
               exit={{ opacity: 0, y: -8 }}
               className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3"
             >
-              <code className="text-xs font-mono font-bold text-amber-300">
-                {vis.banner}
-              </code>
+              <code className="text-xs font-mono font-bold text-amber-300">{vis.banner}</code>
             </motion.div>
           )}
         </AnimatePresence>
@@ -623,13 +680,31 @@ export default function BTreePageExplorer() {
               ))}
 
               {/* Depth labels */}
-              <text x={8} y={(8 / 100) * 380 + 12} fill="rgba(255,255,255,0.15)" fontSize={8} fontWeight={700}>
+              <text
+                x={8}
+                y={(8 / 100) * 380 + 12}
+                fill="rgba(255,255,255,0.15)"
+                fontSize={8}
+                fontWeight={700}
+              >
                 Depth 0
               </text>
-              <text x={8} y={(35 / 100) * 380 + 12} fill="rgba(255,255,255,0.15)" fontSize={8} fontWeight={700}>
+              <text
+                x={8}
+                y={(35 / 100) * 380 + 12}
+                fill="rgba(255,255,255,0.15)"
+                fontSize={8}
+                fontWeight={700}
+              >
                 Depth 1
               </text>
-              <text x={8} y={(65 / 100) * 380 + 12} fill="rgba(255,255,255,0.15)" fontSize={8} fontWeight={700}>
+              <text
+                x={8}
+                y={(65 / 100) * 380 + 12}
+                fill="rgba(255,255,255,0.15)"
+                fontSize={8}
+                fontWeight={700}
+              >
                 Depth 2
               </text>
             </svg>
@@ -661,23 +736,47 @@ export default function BTreePageExplorer() {
         />
       </div>
 
-      <VizExposition 
+      <VizExposition
         whatItIs={
           <>
-            <p>You are looking at a classic B-Tree. All data in FrankenSQLite (tables and indexes) is stored in these 4KB pages. The Root Page routes you to Internal Pages, which eventually route you to Leaf Pages holding the actual data.</p>
+            <p>
+              You are looking at a classic B-Tree. All data in FrankenSQLite (tables and indexes) is
+              stored in these 4KB pages. The Root Page routes you to Internal Pages, which
+              eventually route you to Leaf Pages holding the actual data.
+            </p>
           </>
         }
         howToUse={
           <>
-            <p>The interactive Stepper at the bottom walks you through a complete Read and Write cycle.</p>
-            <p>During the <strong>Read Path</strong>, the engine performs a standard binary search down the tree to locate Alice.</p>
-            <div>During the <strong>Write Path</strong>, we update Alice to Bob. Notice how the original Leaf 3 is never overwritten. Instead, the engine creates a <FrankenJargon term="cow">shadow copy</FrankenJargon>. This requires creating a shadow copy of its parent (Internal B&apos;) and a new Root&apos;.</div>
+            <p>
+              The interactive Stepper at the bottom walks you through a complete Read and Write
+              cycle.
+            </p>
+            <p>
+              During the <strong>Read Path</strong>, the engine performs a standard binary search
+              down the tree to locate Alice.
+            </p>
+            <div>
+              During the <strong>Write Path</strong>, we update Alice to Bob. Notice how the
+              original Leaf 3 is never overwritten. Instead, the engine creates a{" "}
+              <FrankenJargon term="cow">shadow copy</FrankenJargon>. This requires creating a shadow
+              copy of its parent (Internal B&apos;) and a new Root&apos;.
+            </div>
           </>
         }
         whyItMatters={
           <>
-            <div>The <FrankenJargon term="cow">Copy-on-Write</FrankenJargon> mechanism is what enables <FrankenJargon term="mvcc">MVCC</FrankenJargon> at the <FrankenJargon term="btree">B-tree</FrankenJargon> level. Because the old tree was never modified, existing readers can continue querying it simultaneously while the writer constructs the new tree in the background.</div>
-            <p>No locks, no blocking. Once the write is finished, the new Root is atomically swapped in for all future transactions.</p>
+            <div>
+              The <FrankenJargon term="cow">Copy-on-Write</FrankenJargon> mechanism is what enables{" "}
+              <FrankenJargon term="mvcc">MVCC</FrankenJargon> at the{" "}
+              <FrankenJargon term="btree">B-tree</FrankenJargon> level. Because the old tree was
+              never modified, existing readers can continue querying it simultaneously while the
+              writer constructs the new tree in the background.
+            </div>
+            <p>
+              No locks, no blocking. Once the write is finished, the new Root is atomically swapped
+              in for all future transactions.
+            </p>
           </>
         }
       />

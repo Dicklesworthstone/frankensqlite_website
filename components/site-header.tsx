@@ -1,15 +1,25 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ChevronRight,
+  Cpu,
+  Eye,
+  FlaskConical,
+  Home,
+  Image as ImageIcon,
+  Menu,
+  X,
+  Zap,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Eye, Home, Cpu, Zap, ChevronRight, Image as ImageIcon, FlaskConical } from "lucide-react";
-import { useState, useEffect } from "react";
-import { navItems, siteConfig } from "@/lib/site-config";
+import { useEffect, useState } from "react";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { navItems, siteConfig } from "@/lib/site-config";
+import { useSite } from "@/lib/site-state";
 import { cn } from "@/lib/utils";
 import { FrankenBolt, NeuralPulse } from "./franken-elements";
-import { useSite } from "@/lib/site-state";
 import { Magnetic } from "./motion-wrapper";
 
 export default function SiteHeader() {
@@ -32,12 +42,18 @@ export default function SiteHeader() {
 
   const getIcon = (label: string) => {
     switch (label.toLowerCase()) {
-      case 'home': return Home;
-      case 'showcase': return ImageIcon;
-      case 'architecture': return Cpu;
-      case 'spec evolution': return FlaskConical;
-      case 'get started': return Zap;
-      default: return Cpu;
+      case "home":
+        return Home;
+      case "showcase":
+        return ImageIcon;
+      case "architecture":
+        return Cpu;
+      case "spec evolution":
+        return FlaskConical;
+      case "get started":
+        return Zap;
+      default:
+        return Cpu;
     }
   };
 
@@ -49,7 +65,9 @@ export default function SiteHeader() {
           className={cn(
             "absolute top-6 left-1/2 -translate-x-1/2 flex items-center transition-all duration-500 pointer-events-auto",
             "w-[95%] lg:w-[1200px] h-16 px-8 rounded-full border border-white/5",
-            scrolled ? "glass-modern shadow-2xl scale-[0.98] border-teal-500/20" : "bg-transparent border-transparent"
+            scrolled
+              ? "glass-modern shadow-2xl scale-[0.98] border-teal-500/20"
+              : "bg-transparent border-transparent",
           )}
         >
           {scrolled && (
@@ -72,13 +90,18 @@ export default function SiteHeader() {
           <div className="grid grid-cols-3 w-full relative z-10 h-full items-center">
             {/* Column 1: Logo */}
             <div className="flex justify-start">
-              <Link
-                href="/"
-                className="flex items-center gap-3 group shrink-0"
-              >
+              <Link href="/" className="flex items-center gap-3 group shrink-0">
                 <div className="relative flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-tr from-teal-600 to-teal-300 shadow-lg transition-transform group-hover:scale-105 active:scale-95 overflow-visible">
-                  <FrankenBolt color="#14b8a6" baseScale={0.5} className="absolute -left-1 -top-1 z-20" />
-                  <FrankenBolt color="#14b8a6" baseScale={0.5} className="absolute -right-1 -bottom-1 z-20" />
+                  <FrankenBolt
+                    color="#14b8a6"
+                    baseScale={0.5}
+                    className="absolute -left-1 -top-1 z-20"
+                  />
+                  <FrankenBolt
+                    color="#14b8a6"
+                    baseScale={0.5}
+                    className="absolute -right-1 -bottom-1 z-20"
+                  />
                   <span className="text-lg font-black text-black select-none">F</span>
                 </div>
                 <div className="flex flex-col text-left justify-center">
@@ -99,14 +122,17 @@ export default function SiteHeader() {
             {/* Column 2: Navigation - Perfectly Centered */}
             <nav className="flex items-center justify-center gap-1 h-full">
               {navItems.map((item) => {
-                const active = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
+                const active =
+                  pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     className={cn(
                       "px-4 h-9 flex items-center justify-center text-[10px] font-black uppercase tracking-[0.15em] transition-colors rounded-full relative",
-                      active ? "text-teal-400 bg-teal-500/10" : "text-slate-300 hover:text-white hover:bg-white/5"
+                      active
+                        ? "text-teal-400 bg-teal-500/10"
+                        : "text-slate-300 hover:text-white hover:bg-white/5",
                     )}
                   >
                     {item.label}
@@ -123,12 +149,27 @@ export default function SiteHeader() {
 
             {/* Column 3: Tools */}
             <div className="flex items-center justify-end gap-2 shrink-0">
-              <button onClick={toggleAnatomyMode} aria-label="Toggle anatomy mode" aria-pressed={isAnatomyMode} className={cn("p-2 rounded-lg transition-colors", isAnatomyMode ? "text-teal-400 bg-teal-500/10" : "text-slate-400 hover:text-white hover:bg-white/5")}>
+              <button
+                onClick={toggleAnatomyMode}
+                aria-label="Toggle anatomy mode"
+                aria-pressed={isAnatomyMode}
+                className={cn(
+                  "p-2 rounded-lg transition-colors",
+                  isAnatomyMode
+                    ? "text-teal-400 bg-teal-500/10"
+                    : "text-slate-400 hover:text-white hover:bg-white/5",
+                )}
+              >
                 <Eye className="h-4 w-4" />
               </button>
               <div className="w-px h-4 bg-white/10 mx-1" />
               <Magnetic strength={0.1}>
-                <a href={siteConfig.github} target="_blank" rel="noopener noreferrer" className="px-5 py-2 rounded-full bg-white text-black text-[10px] font-black hover:bg-teal-400 transition-all active:scale-95 uppercase tracking-widest">
+                <a
+                  href={siteConfig.github}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-5 py-2 rounded-full bg-white text-black text-[10px] font-black hover:bg-teal-400 transition-all active:scale-95 uppercase tracking-widest"
+                >
                   GITHUB
                 </a>
               </Magnetic>
@@ -141,12 +182,13 @@ export default function SiteHeader() {
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 md:hidden w-[90%] pointer-events-none">
         <nav className="glass-modern h-16 rounded-2xl border border-white/10 flex items-center justify-around px-2 pointer-events-auto shadow-2xl">
           {navItems.map((item) => {
-            const active = pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
+            const active =
+              pathname === item.href || (item.href !== "/" && pathname?.startsWith(item.href));
             const Icon = getIcon(item.label);
             const shortLabel: Record<string, string> = {
-              "Home": "Home",
-              "Showcase": "Show",
-              "Architecture": "Arch.",
+              Home: "Home",
+              Showcase: "Show",
+              Architecture: "Arch.",
               "Spec Evolution": "Spec",
               "Get Started": "Start",
             };
@@ -156,11 +198,13 @@ export default function SiteHeader() {
                 href={item.href}
                 className={cn(
                   "flex flex-col items-center justify-center w-12 h-12 rounded-xl transition-all active:scale-90",
-                  active ? "text-teal-400" : "text-slate-500"
+                  active ? "text-teal-400" : "text-slate-500",
                 )}
               >
                 <Icon className="h-5 w-5 mb-1" />
-                <span className="text-[7px] font-black uppercase tracking-tighter">{shortLabel[item.label] ?? item.label.split(' ')[0]}</span>
+                <span className="text-[7px] font-black uppercase tracking-tighter">
+                  {shortLabel[item.label] ?? item.label.split(" ")[0]}
+                </span>
               </Link>
             );
           })}
@@ -194,8 +238,14 @@ export default function SiteHeader() {
               className="fixed top-0 right-0 bottom-0 w-[80%] z-[80] bg-[#020a05] border-l border-teal-500/20 p-8 flex flex-col md:hidden pointer-events-auto text-left"
             >
               <div className="flex items-center justify-between mb-12">
-                <span className="text-xs font-black text-teal-500 uppercase tracking-[0.4em]">SYSTEM_MENU</span>
-                <button onClick={() => setOpen(false)} aria-label="Close menu" className="p-2 text-slate-500">
+                <span className="text-xs font-black text-teal-500 uppercase tracking-[0.4em]">
+                  SYSTEM_MENU
+                </span>
+                <button
+                  onClick={() => setOpen(false)}
+                  aria-label="Close menu"
+                  className="p-2 text-slate-500"
+                >
                   <X className="h-6 w-6" />
                 </button>
               </div>
@@ -208,7 +258,12 @@ export default function SiteHeader() {
                     onClick={() => setOpen(false)}
                     className="flex items-center justify-between"
                   >
-                    <span className={cn("text-2xl font-black uppercase tracking-tighter", pathname === item.href ? "text-teal-400" : "text-slate-500")}>
+                    <span
+                      className={cn(
+                        "text-2xl font-black uppercase tracking-tighter",
+                        pathname === item.href ? "text-teal-400" : "text-slate-500",
+                      )}
+                    >
                       {item.label}
                     </span>
                     <ChevronRight className="h-5 w-5 text-slate-800" />
@@ -218,8 +273,32 @@ export default function SiteHeader() {
 
               <div className="mt-auto space-y-4">
                 <div className="grid grid-cols-2 gap-4">
-                  <button onClick={toggleAnatomyMode} aria-label="Toggle anatomy mode" aria-pressed={isAnatomyMode} className={cn("p-4 rounded-xl border text-[10px] font-black transition-all", isAnatomyMode ? "bg-teal-500 text-black border-teal-400" : "bg-white/5 border-white/10 text-slate-400")}>ANATOMY</button>
-                  <button onClick={toggleAudio} aria-label="Toggle audio" aria-pressed={isAudioEnabled} className={cn("p-4 rounded-xl border text-[10px] font-black transition-all", isAudioEnabled ? "bg-teal-500 text-black border-teal-400" : "bg-white/5 border-white/10 text-slate-400")}>AUDIO</button>
+                  <button
+                    onClick={toggleAnatomyMode}
+                    aria-label="Toggle anatomy mode"
+                    aria-pressed={isAnatomyMode}
+                    className={cn(
+                      "p-4 rounded-xl border text-[10px] font-black transition-all",
+                      isAnatomyMode
+                        ? "bg-teal-500 text-black border-teal-400"
+                        : "bg-white/5 border-white/10 text-slate-400",
+                    )}
+                  >
+                    ANATOMY
+                  </button>
+                  <button
+                    onClick={toggleAudio}
+                    aria-label="Toggle audio"
+                    aria-pressed={isAudioEnabled}
+                    className={cn(
+                      "p-4 rounded-xl border text-[10px] font-black transition-all",
+                      isAudioEnabled
+                        ? "bg-teal-500 text-black border-teal-400"
+                        : "bg-white/5 border-white/10 text-slate-400",
+                    )}
+                  >
+                    AUDIO
+                  </button>
                 </div>
               </div>
             </motion.div>

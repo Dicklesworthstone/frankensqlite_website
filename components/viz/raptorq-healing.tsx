@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { RotateCcw, ShieldAlert, ShieldCheck, Zap } from "lucide-react";
-import VizContainer from "@/components/viz/viz-container";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FrankenJargon } from "@/components/franken-jargon";
+import VizContainer from "@/components/viz/viz-container";
 import { VizExposition } from "./viz-exposition";
 
 /* ------------------------------------------------------------------ */
@@ -63,7 +63,7 @@ function computeDurability(K: number, p: number, overheadPct: number) {
   }
 
   const logPLoss = logComb + (R + 1) * Math.log10(p);
-  const pLoss = logPLoss < -300 ? 0 : Math.pow(10, logPLoss);
+  const pLoss = logPLoss < -300 ? 0 : 10 ** logPLoss;
   const nines = logPLoss < -300 ? 300 : -logPLoss;
 
   return { pLoss, nines, R };
@@ -72,7 +72,7 @@ function computeDurability(K: number, p: number, overheadPct: number) {
 function formatExponent(val: number): string {
   if (val === 0 || val < 1e-300) return "< 10^-300";
   const exp = Math.floor(Math.log10(val));
-  const mantissa = val / Math.pow(10, exp);
+  const mantissa = val / 10 ** exp;
   if (exp > -3) return val.toExponential(2);
   return `${mantissa.toFixed(1)} x 10^${exp}`;
 }
@@ -113,9 +113,7 @@ function PageTile({
   };
 
   const isCorrupted = page.status === "corrupted";
-  const symbolsForPage = repairSymbols.filter(
-    (s) => s.targetPage === page.id,
-  );
+  const symbolsForPage = repairSymbols.filter((s) => s.targetPage === page.id);
 
   return (
     <div className="relative">
@@ -134,9 +132,7 @@ function PageTile({
         }
       >
         {/* Page number */}
-        <span
-          className={`text-xs font-black tabular-nums ${textColor[page.status]}`}
-        >
+        <span className={`text-xs font-black tabular-nums ${textColor[page.status]}`}>
           {page.id}
         </span>
 
@@ -163,7 +159,11 @@ function PageTile({
           <motion.div
             className="absolute inset-0 rounded-lg bg-blue-400/10"
             animate={prefersReducedMotion ? { opacity: 0.2 } : { opacity: [0.1, 0.3, 0.1] }}
-            transition={prefersReducedMotion ? { duration: 0 } : { duration: 1, repeat: Infinity, ease: "easeInOut" }}
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { duration: 1, repeat: Infinity, ease: "easeInOut" }
+            }
           />
         )}
 
@@ -208,7 +208,7 @@ function PageTile({
                 transition={{
                   duration: RECOVERY_DURATION_MS / 1000,
                   ease: "easeIn",
-                  delay: (i * 0.1),
+                  delay: i * 0.1,
                 }}
                 exit={{ opacity: 0, scale: 0 }}
               />
@@ -248,15 +248,9 @@ function StatusPanel({
         <StatusRow
           label="Repair symbols"
           value={`${Math.max(0, symbolsAvailable)}`}
-          color={
-            symbolsAvailable <= 0 ? "text-red-400" : "text-teal-400"
-          }
+          color={symbolsAvailable <= 0 ? "text-red-400" : "text-teal-400"}
         />
-        <StatusRow
-          label="Overhead budget"
-          value={`${OVERHEAD_PCT}%`}
-          color="text-slate-300"
-        />
+        <StatusRow label="Overhead budget" value={`${OVERHEAD_PCT}%`} color="text-slate-300" />
         <StatusRow label="Repaired pages" value={`${repaired}`} color="text-teal-400" />
       </div>
 
@@ -271,9 +265,7 @@ function StatusPanel({
             className="flex items-start gap-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3"
           >
             <ShieldAlert className="h-4 w-4 text-red-400 shrink-0 mt-0.5" />
-            <span className="text-xs text-red-300 leading-relaxed">
-              {failureMessage}
-            </span>
+            <span className="text-xs text-red-300 leading-relaxed">{failureMessage}</span>
           </motion.div>
         ) : corrupted > 0 ? (
           <motion.div
@@ -307,21 +299,11 @@ function StatusPanel({
   );
 }
 
-function StatusRow({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color: string;
-}) {
+function StatusRow({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="flex items-center justify-between">
       <span className="text-xs text-slate-500">{label}</span>
-      <span className={`text-sm font-black tabular-nums ${color}`}>
-        {value}
-      </span>
+      <span className={`text-sm font-black tabular-nums ${color}`}>{value}</span>
     </div>
   );
 }
@@ -369,9 +351,7 @@ function FountainCodesExplainer() {
             <div className={`text-xs font-black uppercase tracking-wider ${col.color}`}>
               {col.title}
             </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              {col.text}
-            </p>
+            <p className="text-[11px] text-slate-400 leading-relaxed">{col.text}</p>
           </div>
         ))}
       </div>
@@ -388,12 +368,9 @@ function DurabilityCalculator() {
   const [pExp, setPExp] = useState(-4); // log10(p)
   const [overhead, setOverhead] = useState(20);
 
-  const p = Math.pow(10, pExp);
+  const p = 10 ** pExp;
 
-  const { pLoss, nines, R } = useMemo(
-    () => computeDurability(K, p, overhead),
-    [K, p, overhead],
-  );
+  const { pLoss, nines, R } = useMemo(() => computeDurability(K, p, overhead), [K, p, overhead]);
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/40 p-3 md:p-4 space-y-4">
@@ -438,9 +415,15 @@ function DurabilityCalculator() {
           P(loss) &le; C(K+R, K) &times; p^(R+1)
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-slate-600 leading-relaxed">
-          <span><strong className="text-slate-400">K</strong> = source data pages in a group</span>
-          <span><strong className="text-slate-400">R</strong> = extra repair symbols (from overhead %)</span>
-          <span><strong className="text-slate-400">p</strong> = probability any single page is corrupted</span>
+          <span>
+            <strong className="text-slate-400">K</strong> = source data pages in a group
+          </span>
+          <span>
+            <strong className="text-slate-400">R</strong> = extra repair symbols (from overhead %)
+          </span>
+          <span>
+            <strong className="text-slate-400">p</strong> = probability any single page is corrupted
+          </span>
         </div>
         <div className="text-[10px] text-slate-500 font-mono">
           K={K.toLocaleString()}, R={R.toLocaleString()}, p={p.toExponential(0)}
@@ -459,9 +442,7 @@ function DurabilityCalculator() {
               Nines of Durability
             </div>
             <div className="text-sm font-black text-teal-400 tabular-nums">
-              {nines >= 300
-                ? "> 300"
-                : nines.toFixed(1)}
+              {nines >= 300 ? "> 300" : nines.toFixed(1)}
             </div>
           </div>
           <div>
@@ -472,13 +453,9 @@ function DurabilityCalculator() {
               {nines >= 300 ? (
                 <span className="text-teal-400">Far exceeds S3</span>
               ) : nines >= 11 ? (
-                <span className="text-teal-400">
-                  {(nines / 11).toFixed(1)}x S3
-                </span>
+                <span className="text-teal-400">{(nines / 11).toFixed(1)}x S3</span>
               ) : (
-                <span className="text-amber-400">
-                  {(nines / 11).toFixed(1)}x S3
-                </span>
+                <span className="text-amber-400">{(nines / 11).toFixed(1)}x S3</span>
               )}
             </div>
           </div>
@@ -509,9 +486,7 @@ function SliderWithLabel({
     <div className="space-y-1">
       <div className="flex items-center justify-between">
         <span className="text-[10px] font-bold text-slate-400">{label}</span>
-        <span className="text-[10px] font-black text-white tabular-nums">
-          {display}
-        </span>
+        <span className="text-[10px] font-black text-white tabular-nums">{display}</span>
       </div>
       <input
         type="range"
@@ -556,120 +531,113 @@ export default function RaptorQHealing() {
     };
   }, []);
 
-  const corruptPage = useCallback(
-    (pageId: number) => {
-      setPages((prev) => {
-        const page = prev[pageId];
-        // Can only corrupt healthy or repaired pages
-        if (page.status !== "healthy" && page.status !== "repaired") return prev;
+  const corruptPage = useCallback((pageId: number) => {
+    setPages((prev) => {
+      const page = prev[pageId];
+      // Can only corrupt healthy or repaired pages
+      if (page.status !== "healthy" && page.status !== "repaired") return prev;
 
-        // Count currently corrupted/recovering pages (excluding this one)
-        const currentlyBroken = prev.filter(
-          (p) =>
-            p.status === "corrupted" || p.status === "recovering",
-        ).length;
+      // Count currently corrupted/recovering pages (excluding this one)
+      const currentlyBroken = prev.filter(
+        (p) => p.status === "corrupted" || p.status === "recovering",
+      ).length;
 
-        // Check if corruption would exceed repair capacity
-        if (currentlyBroken >= MAX_CORRUPT_BEFORE_FAILURE) {
-          setFailureMessage(
-            "Insufficient repair symbols -- RaptorQ overhead budget exceeded. Too many simultaneous corruptions to recover.",
-          );
-          return prev;
-        }
-
-        const now = Date.now();
-        const next = prev.map((p) =>
-          p.id === pageId
-            ? { ...p, status: "corrupted" as const, health: 0, corruptedAt: now }
-            : p,
+      // Check if corruption would exceed repair capacity
+      if (currentlyBroken >= MAX_CORRUPT_BEFORE_FAILURE) {
+        setFailureMessage(
+          "Insufficient repair symbols -- RaptorQ overhead budget exceeded. Too many simultaneous corruptions to recover.",
         );
+        return prev;
+      }
 
-        // Generate repair symbols
-        const newSymbols: RepairSymbol[] = Array.from({ length: 4 }, () => ({
-          id: `sym-${symbolIdRef.current++}`,
-          fromAngle: Math.random() * 360,
-          targetPage: pageId,
-          startTime: now,
-        }));
+      const now = Date.now();
+      const next = prev.map((p) =>
+        p.id === pageId ? { ...p, status: "corrupted" as const, health: 0, corruptedAt: now } : p,
+      );
 
-        setRepairSymbols((prev) => [...prev, ...newSymbols]);
+      // Generate repair symbols
+      const newSymbols: RepairSymbol[] = Array.from({ length: 4 }, () => ({
+        id: `sym-${symbolIdRef.current++}`,
+        fromAngle: Math.random() * 360,
+        targetPage: pageId,
+        startTime: now,
+      }));
 
-        // Schedule recovery start
-        const recoveryTimer = setTimeout(() => {
-          setPages((current) => {
-            const p = current[pageId];
-            if (p.status !== "corrupted") return current;
+      setRepairSymbols((prev) => [...prev, ...newSymbols]);
 
-            return current.map((pg) =>
-              pg.id === pageId
-                ? {
-                    ...pg,
-                    status: "recovering" as const,
-                    health: 30,
-                    recoveryStart: Date.now(),
-                  }
+      // Schedule recovery start
+      const recoveryTimer = setTimeout(() => {
+        setPages((current) => {
+          const p = current[pageId];
+          if (p.status !== "corrupted") return current;
+
+          return current.map((pg) =>
+            pg.id === pageId
+              ? {
+                  ...pg,
+                  status: "recovering" as const,
+                  health: 30,
+                  recoveryStart: Date.now(),
+                }
+              : pg,
+          );
+        });
+
+        // Schedule recovery progress
+        const progressTimer = setTimeout(() => {
+          setPages((current) =>
+            current.map((pg) =>
+              pg.id === pageId && pg.status === "recovering" ? { ...pg, health: 70 } : pg,
+            ),
+          );
+        }, RECOVERY_DURATION_MS * 0.4);
+        timersRef.current.set(pageId * 1000 + 1, progressTimer);
+
+        // Schedule recovery complete
+        const completeTimer = setTimeout(() => {
+          setPages((current) =>
+            current.map((pg) =>
+              pg.id === pageId && (pg.status === "recovering" || pg.status === "corrupted")
+                ? { ...pg, status: "repaired" as const, health: 100 }
                 : pg,
-            );
+            ),
+          );
+
+          // Clean up symbols for this page
+          setRepairSymbols((current) => current.filter((s) => s.targetPage !== pageId));
+
+          // Clear failure message if everything is recovered
+          setPages((current) => {
+            const stillBroken = current.filter(
+              (p) => p.id !== pageId && (p.status === "corrupted" || p.status === "recovering"),
+            ).length;
+            if (stillBroken === 0) {
+              setFailureMessage(null);
+            }
+            return current;
           });
 
-          // Schedule recovery progress
-          const progressTimer = setTimeout(() => {
-            setPages((current) =>
-              current.map((pg) =>
-                pg.id === pageId && pg.status === "recovering"
-                  ? { ...pg, health: 70 }
-                  : pg,
-              ),
-            );
-          }, RECOVERY_DURATION_MS * 0.4);
-          timersRef.current.set(pageId * 1000 + 1, progressTimer);
+          timersRef.current.delete(pageId);
+        }, RECOVERY_DURATION_MS);
+        timersRef.current.set(pageId * 1000 + 2, completeTimer);
+      }, RECOVERY_DELAY_MS);
 
-          // Schedule recovery complete
-          const completeTimer = setTimeout(() => {
-            setPages((current) =>
-              current.map((pg) =>
-                pg.id === pageId &&
-                (pg.status === "recovering" || pg.status === "corrupted")
-                  ? { ...pg, status: "repaired" as const, health: 100 }
-                  : pg,
-              ),
-            );
+      timersRef.current.set(pageId, recoveryTimer);
 
-            // Clean up symbols for this page
-            setRepairSymbols((current) =>
-              current.filter((s) => s.targetPage !== pageId),
-            );
-
-            // Clear failure message if everything is recovered
-            setPages((current) => {
-              const stillBroken = current.filter(
-                (p) =>
-                  p.id !== pageId &&
-                  (p.status === "corrupted" || p.status === "recovering"),
-              ).length;
-              if (stillBroken === 0) {
-                setFailureMessage(null);
-              }
-              return current;
-            });
-
-            timersRef.current.delete(pageId);
-          }, RECOVERY_DURATION_MS);
-          timersRef.current.set(pageId * 1000 + 2, completeTimer);
-        }, RECOVERY_DELAY_MS);
-
-        timersRef.current.set(pageId, recoveryTimer);
-
-        return next;
-      });
-    },
-    [],
-  );
+      return next;
+    });
+  }, []);
 
   return (
     <VizContainer
       title="RaptorQ Self-Healing Demo"
-      description={<>Click database pages to corrupt them and watch <FrankenJargon term="raptorq">RaptorQ fountain codes</FrankenJargon> automatically repair the damage. With 20% overhead, up to 3 simultaneous page failures can be recovered.</>}
+      description={
+        <>
+          Click database pages to corrupt them and watch{" "}
+          <FrankenJargon term="raptorq">RaptorQ fountain codes</FrankenJargon> automatically repair
+          the damage. With 20% overhead, up to 3 simultaneous page failures can be recovered.
+        </>
+      }
       minHeight={480}
     >
       <div className="p-3 md:p-6 space-y-5">
@@ -724,21 +692,56 @@ export default function RaptorQHealing() {
       <VizExposition
         whatItIs={
           <>
-            <div>You are looking at a simulation of <FrankenJargon term="raptorq">RaptorQ (RFC 6330) Fountain Codes</FrankenJargon>. Standard databases rely entirely on the underlying hardware or filesystem (like ZFS) to prevent data loss. FrankenSQLite bakes mathematical erasure coding directly into the storage engine.</div>
-            <p>For every block of data written, the engine generates extra <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> and stores them sequentially in the <FrankenJargon term="wal">WAL</FrankenJargon>.</p>
+            <div>
+              You are looking at a simulation of{" "}
+              <FrankenJargon term="raptorq">RaptorQ (RFC 6330) Fountain Codes</FrankenJargon>.
+              Standard databases rely entirely on the underlying hardware or filesystem (like ZFS)
+              to prevent data loss. FrankenSQLite bakes mathematical erasure coding directly into
+              the storage engine.
+            </div>
+            <p>
+              For every block of data written, the engine generates extra{" "}
+              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> and stores them
+              sequentially in the <FrankenJargon term="wal">WAL</FrankenJargon>.
+            </p>
           </>
         }
         howToUse={
           <>
-            <p>Click on any of the green healthy pages in the grid to simulate a &ldquo;bit rot&rdquo; event or bad disk sector.</p>
-            <div>Notice how the engine immediately detects the corruption via checksums, pauses the read, grabs the blue <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>, and performs <FrankenJargon term="gf256">GF(256)</FrankenJargon> math to perfectly reconstruct the lost <FrankenJargon term="btree">B-tree page</FrankenJargon>. Try corrupting 3 pages at once!</div>
-            <p>If you corrupt 4 pages, the recovery fails because the damage exceeded the 20% overhead budget.</p>
+            <p>
+              Click on any of the green healthy pages in the grid to simulate a &ldquo;bit
+              rot&rdquo; event or bad disk sector.
+            </p>
+            <div>
+              Notice how the engine immediately detects the corruption via checksums, pauses the
+              read, grabs the blue{" "}
+              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>, and performs{" "}
+              <FrankenJargon term="gf256">GF(256)</FrankenJargon> math to perfectly reconstruct the
+              lost <FrankenJargon term="btree">B-tree page</FrankenJargon>. Try corrupting 3 pages
+              at once!
+            </div>
+            <p>
+              If you corrupt 4 pages, the recovery fails because the damage exceeded the 20%
+              overhead budget.
+            </p>
           </>
         }
         whyItMatters={
           <>
-            <p>Silent data corruption occurs regularly at scale. Studies from Google and CERN report bit-flip rates of 1 in 10^7 per drive per hour. If a <FrankenJargon term="btree">B-tree page</FrankenJargon> is silently corrupted, a standard database will not detect the error until a read encounters the damaged sector, potentially weeks later. By that point, backups may also contain the corrupted data, and recovery requires hours of downtime replaying a full <code>.sql</code> dump.</p>
-            <p>FrankenSQLite provides mathematical data-loss guarantees by healing corrupted pages in microseconds during normal read operations. This gives you ZFS-level enterprise durability on any standard filesystem without requiring specialized hardware or a replicated storage layer.</p>
+            <p>
+              Silent data corruption occurs regularly at scale. Studies from Google and CERN report
+              bit-flip rates of 1 in 10^7 per drive per hour. If a{" "}
+              <FrankenJargon term="btree">B-tree page</FrankenJargon> is silently corrupted, a
+              standard database will not detect the error until a read encounters the damaged
+              sector, potentially weeks later. By that point, backups may also contain the corrupted
+              data, and recovery requires hours of downtime replaying a full <code>.sql</code> dump.
+            </p>
+            <p>
+              FrankenSQLite provides mathematical data-loss guarantees by healing corrupted pages in
+              microseconds during normal read operations. This gives you ZFS-level enterprise
+              durability on any standard filesystem without requiring specialized hardware or a
+              replicated storage layer.
+            </p>
           </>
         }
       />

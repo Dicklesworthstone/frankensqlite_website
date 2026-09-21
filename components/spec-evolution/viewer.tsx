@@ -1,43 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  X,
-  Search,
-  Play,
-  Pause,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-  Info,
-  Menu,
-  ArrowLeft,
-} from "lucide-react";
-import Link from "next/link";
-import dayjs from "dayjs";
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useStore } from "@tanstack/react-store";
-import { Store } from "@tanstack/store";
 import {
   type ColumnDef,
-  type SortingState,
   getCoreRowModel,
   getFilteredRowModel,
   getSortedRowModel,
+  type SortingState,
   useReactTable,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { Store } from "@tanstack/store";
+import dayjs from "dayjs";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Info,
+  Maximize2,
+  Menu,
+  Minimize2,
+  Pause,
+  Play,
+  Search,
+  X,
+} from "lucide-react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { BUCKETS, DB_FILENAME } from "./constants";
 import { applySynapticPatch, stripMd } from "./patch-engine";
-import type { Commit, Tab, DiffMode, MetricsEntry } from "./types";
+import type { Commit, DiffMode, MetricsEntry, Tab } from "./types";
 import "./viewer.css";
 
 // ---------------------------------------------------------------------------
@@ -116,9 +111,7 @@ const addedPatchLinesCache = new Map<number, Set<string>>();
 let markedModulePromise: Promise<typeof import("marked")> | null = null;
 let domPurifyModulePromise: Promise<typeof import("dompurify")> | null = null;
 let diff2htmlModulePromise: Promise<typeof import("diff2html")> | null = null;
-let diff2htmlTypesModulePromise: Promise<
-  typeof import("diff2html/lib/types")
-> | null = null;
+let diff2htmlTypesModulePromise: Promise<typeof import("diff2html/lib/types")> | null = null;
 
 function getMarkedModule() {
   markedModulePromise ??= import("marked");
@@ -145,8 +138,7 @@ async function loadDatabase(): Promise<SqlJsDatabase> {
 
   const initSqlJs = (await import("sql.js")).default;
   const SQL = await initSqlJs({
-    locateFile: (file: string) =>
-      `https://cdn.jsdelivr.net/npm/sql.js@1.14.0/dist/${file}`,
+    locateFile: (file: string) => `https://cdn.jsdelivr.net/npm/sql.js@1.14.0/dist/${file}`,
   });
 
   const resp = await fetch(`/${DB_FILENAME}`);
@@ -165,7 +157,7 @@ async function loadDatabase(): Promise<SqlJsDatabase> {
 
 function loadCommitsFromDb(db: SqlJsDatabase): Commit[] {
   const res = db.exec(
-    "SELECT idx, hash, short, date_iso, author, subject, add_lines, del_lines, impact, primary_bucket, labels_json FROM commits ORDER BY idx ASC"
+    "SELECT idx, hash, short, date_iso, author, subject, add_lines, del_lines, impact, primary_bucket, labels_json FROM commits ORDER BY idx ASC",
   );
   if (!res.length) return [];
   return res[0].values.map((r) => ({
@@ -175,7 +167,8 @@ function loadCommitsFromDb(db: SqlJsDatabase): Commit[] {
     date: r[3] as string,
     author: r[4] as string,
     subject: r[5] as string,
-    searchText: `${r[5] as string} ${r[1] as string} ${r[2] as string} ${r[4] as string}`.toLowerCase(),
+    searchText:
+      `${r[5] as string} ${r[1] as string} ${r[2] as string} ${r[4] as string}`.toLowerCase(),
     add: r[6] as number,
     del: r[7] as number,
     impact: r[8] as number,
@@ -184,9 +177,7 @@ function loadCommitsFromDb(db: SqlJsDatabase): Commit[] {
   }));
 }
 
-function loadGroupsFromDb(
-  db: SqlJsDatabase
-): Map<string, number[]> {
+function loadGroupsFromDb(db: SqlJsDatabase): Map<string, number[]> {
   const groups = new Map<string, number[]>();
   const res = db.exec("SELECT commit_hash, labels_json FROM change_groups");
   if (!res.length) return groups;
@@ -339,7 +330,7 @@ function getAllPatches(db: SqlJsDatabase): Map<number, string> {
 async function reconstructSnapshot(
   db: SqlJsDatabase,
   idx: number,
-  baseDoc: string
+  baseDoc: string,
 ): Promise<string> {
   if (docCache.has(idx)) return docCache.get(idx)!;
 
@@ -367,7 +358,7 @@ async function reconstructSnapshot(
 async function computeAllMetrics(
   db: SqlJsDatabase,
   commits: Commit[],
-  baseDoc: string
+  baseDoc: string,
 ): Promise<MetricsEntry[]> {
   const metrics: MetricsEntry[] = [];
   const allPatches = getAllPatches(db);
@@ -388,15 +379,13 @@ async function computeAllMetrics(
 // ---------------------------------------------------------------------------
 
 function escapeHtml(text: string): string {
-  return text
-    ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-    : "";
+  return text ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
 }
 
 function enhanceTables(root: HTMLElement) {
   root.querySelectorAll("table").forEach((table) => {
-    const headers = Array.from(table.querySelectorAll("th")).map((th) =>
-      th.textContent?.trim() ?? ""
+    const headers = Array.from(table.querySelectorAll("th")).map(
+      (th) => th.textContent?.trim() ?? "",
     );
     table.querySelectorAll("tr").forEach((tr) => {
       tr.querySelectorAll("td").forEach((td, i) => {
@@ -468,7 +457,7 @@ function SpecEvolutionViewerInner() {
 
   const velocityChartData = useMemo(
     () => commits.map((commit) => [commit.date, commit.impact] as [string, number]),
-    [commits]
+    [commits],
   );
 
   const distributionChartData = useMemo(() => {
@@ -529,7 +518,7 @@ function SpecEvolutionViewerInner() {
           ratio: counts[bucketId] / total,
         }));
       }),
-    [commits, groups]
+    [commits, groups],
   );
 
   useEffect(() => {
@@ -593,7 +582,7 @@ function SpecEvolutionViewerInner() {
     if (!db || commits.length === 0) return;
 
     const neighborIdxs = [currentIdx - 1, currentIdx + 1].filter(
-      (idx) => idx >= 0 && idx < commits.length
+      (idx) => idx >= 0 && idx < commits.length,
     );
 
     neighborIdxs.forEach((idx) => {
@@ -618,16 +607,22 @@ function SpecEvolutionViewerInner() {
       });
     };
 
-    const requestIdle = (window as Window & typeof globalThis & {
-      requestIdleCallback?: (
-        callback: IdleRequestCallback,
-        options?: IdleRequestOptions
-      ) => number;
-      cancelIdleCallback?: (handle: number) => void;
-    }).requestIdleCallback;
-    const cancelIdle = (window as Window & typeof globalThis & {
-      cancelIdleCallback?: (handle: number) => void;
-    }).cancelIdleCallback;
+    const requestIdle = (
+      window as Window &
+        typeof globalThis & {
+          requestIdleCallback?: (
+            callback: IdleRequestCallback,
+            options?: IdleRequestOptions,
+          ) => number;
+          cancelIdleCallback?: (handle: number) => void;
+        }
+    ).requestIdleCallback;
+    const cancelIdle = (
+      window as Window &
+        typeof globalThis & {
+          cancelIdleCallback?: (handle: number) => void;
+        }
+    ).cancelIdleCallback;
 
     if (typeof requestIdle === "function" && typeof cancelIdle === "function") {
       const idleId = requestIdle(prefetchSnapshot, {
@@ -658,7 +653,9 @@ function SpecEvolutionViewerInner() {
       globalFilter: query,
     },
     globalFilterFn: (row, _columnId, filterValue) => {
-      const q = String(filterValue ?? "").trim().toLowerCase();
+      const q = String(filterValue ?? "")
+        .trim()
+        .toLowerCase();
       if (!q) return true;
 
       const commit = row.original;
@@ -670,10 +667,7 @@ function SpecEvolutionViewerInner() {
   });
 
   const filteredRows = commitTable.getRowModel().rows;
-  const filtered = useMemo(
-    () => filteredRows.map((row) => row.original),
-    [filteredRows]
-  );
+  const filtered = useMemo(() => filteredRows.map((row) => row.original), [filteredRows]);
   const filteredIndexByCommitIdx = useMemo(() => {
     const indexMap = new Map<number, number>();
     filtered.forEach((commit, idx) => {
@@ -699,10 +693,7 @@ function SpecEvolutionViewerInner() {
     return map;
   }, [filtered]);
 
-  const firstFilteredIdx = useMemo(
-    () => filtered[0]?.idx,
-    [filtered]
-  );
+  const firstFilteredIdx = useMemo(() => filtered[0]?.idx, [filtered]);
 
   const currentCommit = commits[currentIdx] ?? null;
 
@@ -716,7 +707,7 @@ function SpecEvolutionViewerInner() {
 
   const selectedFilteredIdx = useMemo(
     () => filteredIndexByCommitIdx.get(currentIdx) ?? -1,
-    [filteredIndexByCommitIdx, currentIdx]
+    [filteredIndexByCommitIdx, currentIdx],
   );
 
   useEffect(() => {
@@ -739,10 +730,7 @@ function SpecEvolutionViewerInner() {
     const cachedSpecHtml = specHtmlCache.get(currentIdx);
     if (cachedSpecHtml !== undefined) {
       viewerStore.setState((state) => {
-        if (
-          state.specLineCount === lineCount &&
-          state.specHtml === cachedSpecHtml
-        ) {
+        if (state.specLineCount === lineCount && state.specHtml === cachedSpecHtml) {
           return state;
         }
 
@@ -782,7 +770,7 @@ function SpecEvolutionViewerInner() {
           };
         });
       } catch {
-        const fallbackHtml = `<pre class=\"spec-fallback-pre\">${escapeHtml(text)}</pre>`;
+        const fallbackHtml = `<pre class="spec-fallback-pre">${escapeHtml(text)}</pre>`;
         specHtmlCache.set(currentIdx, fallbackHtml);
         viewerStore.setState((state) => {
           if (state.specHtml === fallbackHtml) return state;
@@ -809,11 +797,7 @@ function SpecEvolutionViewerInner() {
     const addedLines = getAddedPatchLines(currentIdx, patch);
     if (addedLines.size === 0) return;
 
-    const walker = document.createTreeWalker(
-      specContentRef.current,
-      NodeFilter.SHOW_TEXT,
-      null
-    );
+    const walker = document.createTreeWalker(specContentRef.current, NodeFilter.SHOW_TEXT, null);
     const nodesToReplace: Text[] = [];
     let node: Text | null;
     while ((node = walker.nextNode() as Text | null)) {
@@ -823,10 +807,7 @@ function SpecEvolutionViewerInner() {
       }
     }
     nodesToReplace.forEach((n) => {
-      if (
-        n.parentNode &&
-        !(n.parentNode as HTMLElement).classList?.contains("diff-highlight")
-      ) {
+      if (n.parentNode && !(n.parentNode as HTMLElement).classList?.contains("diff-highlight")) {
         const span = document.createElement("span");
         span.className = "diff-highlight";
         span.textContent = n.textContent;
@@ -896,7 +877,7 @@ function SpecEvolutionViewerInner() {
           };
         });
       } catch {
-        const fallbackHtml = `<pre class=\"spec-fallback-pre\">${escapeHtml(patch)}</pre>`;
+        const fallbackHtml = `<pre class="spec-fallback-pre">${escapeHtml(patch)}</pre>`;
         diffHtmlCache.set(diffCacheKey, fallbackHtml);
         viewerStore.setState((state) => {
           if (state.diffHtml === fallbackHtml) return state;
@@ -931,9 +912,7 @@ function SpecEvolutionViewerInner() {
 
       if (chartVelocityRef.current) {
         if (!echartsRef.current.velocity) {
-          echartsRef.current.velocity = echarts.init(
-            chartVelocityRef.current
-          ) as EChartsLike;
+          echartsRef.current.velocity = echarts.init(chartVelocityRef.current) as EChartsLike;
         }
 
         echartsRef.current.velocity.setOption(
@@ -974,7 +953,7 @@ function SpecEvolutionViewerInner() {
               },
             ],
           },
-          true
+          true,
         );
       }
 
@@ -1000,7 +979,7 @@ function SpecEvolutionViewerInner() {
               },
             ],
           },
-          true
+          true,
         );
       }
 
@@ -1025,7 +1004,7 @@ function SpecEvolutionViewerInner() {
             },
             series: massChartData.series,
           },
-          true
+          true,
         );
       }
     }
@@ -1124,14 +1103,9 @@ function SpecEvolutionViewerInner() {
     ctx.drawImage(background, 0, 0);
 
     const indicatorWidth = Math.max(2, Math.round(2 * dpr));
-    const indicatorX = Math.round(((currentIdx / commits.length) * cw) * dpr);
+    const indicatorX = Math.round((currentIdx / commits.length) * cw * dpr);
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-    ctx.fillRect(
-      indicatorX - Math.floor(indicatorWidth / 2),
-      0,
-      indicatorWidth,
-      heightPx
-    );
+    ctx.fillRect(indicatorX - Math.floor(indicatorWidth / 2), 0, indicatorWidth, heightPx);
   }, [commits.length, currentIdx, evolutionMapStacks, bucketColorById]);
 
   useEffect(() => {
@@ -1191,14 +1165,17 @@ function SpecEvolutionViewerInner() {
       }));
       history.replaceState(null, "", `#entry-${target}`);
     },
-    [commits.length, viewerStore]
+    [commits.length, viewerStore],
   );
 
   const goPrev = useCallback(() => {
     const prevIdx = prevByCommitIdx.get(currentIdx);
     if (prevIdx !== undefined) {
       selectCommit(prevIdx);
-    } else if (firstFilteredIdx !== undefined && filteredIndexByCommitIdx.get(currentIdx) === undefined) {
+    } else if (
+      firstFilteredIdx !== undefined &&
+      filteredIndexByCommitIdx.get(currentIdx) === undefined
+    ) {
       selectCommit(firstFilteredIdx);
     }
   }, [prevByCommitIdx, firstFilteredIdx, filteredIndexByCommitIdx, currentIdx, selectCommit]);
@@ -1207,7 +1184,10 @@ function SpecEvolutionViewerInner() {
     const nextIdx = nextByCommitIdx.get(currentIdx);
     if (nextIdx !== undefined) {
       selectCommit(nextIdx);
-    } else if (firstFilteredIdx !== undefined && filteredIndexByCommitIdx.get(currentIdx) === undefined) {
+    } else if (
+      firstFilteredIdx !== undefined &&
+      filteredIndexByCommitIdx.get(currentIdx) === undefined
+    ) {
       selectCommit(firstFilteredIdx);
     }
   }, [nextByCommitIdx, firstFilteredIdx, filteredIndexByCommitIdx, currentIdx, selectCommit]);
@@ -1250,7 +1230,10 @@ function SpecEvolutionViewerInner() {
         }
 
         // Not in filtered list - jump to first filtered entry
-        if (filteredIndexByCommitIdx.get(state.currentIdx) === undefined && firstFilteredIdx !== undefined) {
+        if (
+          filteredIndexByCommitIdx.get(state.currentIdx) === undefined &&
+          firstFilteredIdx !== undefined
+        ) {
           history.replaceState(null, "", `#entry-${firstFilteredIdx}`);
           return {
             ...state,
@@ -1338,7 +1321,7 @@ function SpecEvolutionViewerInner() {
         };
       });
     },
-    [viewerStore]
+    [viewerStore],
   );
 
   // ── Canvas click handler ────────────────────────────────────────────
@@ -1350,7 +1333,7 @@ function SpecEvolutionViewerInner() {
       const idx = Math.floor((x / rect.width) * commits.length);
       if (idx >= 0 && idx < commits.length) selectCommit(idx);
     },
-    [commits.length, selectCommit]
+    [commits.length, selectCommit],
   );
 
   // ── Render ──────────────────────────────────────────────────────────
@@ -1378,10 +1361,7 @@ function SpecEvolutionViewerInner() {
           <div className="text-red-500 font-mono text-xs uppercase tracking-widest">
             INIT_FAILURE: {errText}
           </div>
-          <Link
-            href="/"
-            className="mt-6 btn-spec"
-          >
+          <Link href="/" className="mt-6 btn-spec">
             Return Home
           </Link>
         </div>
@@ -1403,9 +1383,7 @@ function SpecEvolutionViewerInner() {
               <ArrowLeft className="w-3 h-3" />
               <span className="hidden sm:inline">HOME</span>
             </Link>
-            <span className="spec-viewer-brand-text hidden sm:inline">
-              Spec Evolution Lab
-            </span>
+            <span className="spec-viewer-brand-text hidden sm:inline">Spec Evolution Lab</span>
           </div>
 
           <div className="spec-viewer-kpi-row">
@@ -1415,9 +1393,7 @@ function SpecEvolutionViewerInner() {
             </div>
             <div className="spec-viewer-kpi">
               <span className="spec-viewer-kpi-label">Lines</span>
-              <span className="spec-viewer-kpi-value">
-                {specLineCount.toLocaleString()}
-              </span>
+              <span className="spec-viewer-kpi-value">{specLineCount.toLocaleString()}</span>
             </div>
           </div>
 
@@ -1465,12 +1441,7 @@ function SpecEvolutionViewerInner() {
               }
             />
           )}
-          <aside
-            className={cn(
-              "spec-sidebar",
-              sidebarOpen && "mobile-active"
-            )}
-          >
+          <aside className={cn("spec-sidebar", sidebarOpen && "mobile-active")}>
             <div className="spec-sidebar-header">
               <div className="flex items-center gap-2">
                 <Search className="w-3 h-3 text-slate-500 flex-shrink-0" />
@@ -1524,11 +1495,10 @@ function SpecEvolutionViewerInner() {
                 {BUCKETS.map((b) => (
                   <span
                     key={b.id}
-                    className={cn(
-                      "filter-pill",
-                      activeBuckets.has(b.id) && "active"
-                    )}
-                    style={{ "--pill-color": b.color, color: `${b.color}cc` } as React.CSSProperties}
+                    className={cn("filter-pill", activeBuckets.has(b.id) && "active")}
+                    style={
+                      { "--pill-color": b.color, color: `${b.color}cc` } as React.CSSProperties
+                    }
                     title={b.desc}
                     onClick={() => toggleBucket(b.id)}
                   >
@@ -1571,7 +1541,7 @@ function SpecEvolutionViewerInner() {
                           className={cn(
                             "commit-card",
                             isSelected && "selected",
-                            isSelected && playing && "playing"
+                            isSelected && playing && "playing",
                           )}
                           onClick={() => {
                             selectCommit(c.idx);
@@ -1585,9 +1555,7 @@ function SpecEvolutionViewerInner() {
                             <span>#{c.idx}</span>
                             <span>{dayjs(c.date).format("MMM DD")}</span>
                           </div>
-                          <div className="commit-card-subject">
-                            {c.subject}
-                          </div>
+                          <div className="commit-card-subject">{c.subject}</div>
                           <div className="commit-card-meta">
                             <span
                               className="tag-pill"
@@ -1644,9 +1612,7 @@ function SpecEvolutionViewerInner() {
                       viewerStore.setState((state) => ({
                         ...state,
                         diffMode:
-                          state.diffMode === "line-by-line"
-                            ? "side-by-side"
-                            : "line-by-line",
+                          state.diffMode === "line-by-line" ? "side-by-side" : "line-by-line",
                       }))
                     }
                   >
@@ -1654,21 +1620,14 @@ function SpecEvolutionViewerInner() {
                   </button>
                 )}
                 <span className="spec-active-label hidden sm:inline">
-                  {currentCommit
-                    ? `LOG_ENTRY_${currentIdx} // ${currentCommit.short}`
-                    : ""}
+                  {currentCommit ? `LOG_ENTRY_${currentIdx} // ${currentCommit.short}` : ""}
                 </span>
               </div>
             </div>
 
             <div className="spec-viewport">
               {/* Spec Tab */}
-              <div
-                className={cn(
-                  "spec-scroll-pane",
-                  tab !== "spec" && "hidden"
-                )}
-              >
+              <div className={cn("spec-scroll-pane", tab !== "spec" && "hidden")}>
                 <div
                   ref={specContentRef}
                   className="spec-content"
@@ -1678,10 +1637,7 @@ function SpecEvolutionViewerInner() {
 
               {/* Timeline/Charts Tab */}
               <div
-                className={cn(
-                  "spec-scroll-pane spec-charts-panel",
-                  tab !== "timeline" && "hidden"
-                )}
+                className={cn("spec-scroll-pane spec-charts-panel", tab !== "timeline" && "hidden")}
               >
                 <div ref={chartVelocityRef} style={{ height: 250, marginBottom: 30 }} />
                 <div ref={chartDistRef} style={{ height: 250, marginBottom: 30 }} />
@@ -1689,12 +1645,7 @@ function SpecEvolutionViewerInner() {
               </div>
 
               {/* Diff Tab */}
-              <div
-                className={cn(
-                  "spec-scroll-pane spec-diff-content",
-                  tab !== "diff" && "hidden"
-                )}
-              >
+              <div className={cn("spec-scroll-pane spec-diff-content", tab !== "diff" && "hidden")}>
                 <div dangerouslySetInnerHTML={{ __html: diffHtml }} />
               </div>
             </div>
@@ -1704,21 +1655,14 @@ function SpecEvolutionViewerInner() {
         {/* ── Dock ────────────────────────────────────────────────── */}
         <div className="spec-dock">
           <div className="spec-evolution-map">
-            <canvas
-              ref={canvasRef}
-              className="spec-map-canvas"
-              onClick={handleMapClick}
-            />
+            <canvas ref={canvasRef} className="spec-map-canvas" onClick={handleMapClick} />
           </div>
           <div className="spec-dock-controls">
             <div className="spec-dock-buttons">
               <button className="btn-spec" onClick={goPrev}>
                 <ChevronLeft className="w-3 h-3 inline" /> PREV
               </button>
-              <button
-                className={cn("btn-spec", playing && "active")}
-                onClick={togglePlay}
-              >
+              <button className={cn("btn-spec", playing && "active")} onClick={togglePlay}>
                 {playing ? (
                   <>
                     <Pause className="w-3 h-3 inline mr-1" />
@@ -1755,9 +1699,7 @@ function SpecEvolutionViewerInner() {
             <div className="spec-dock-info">
               {currentCommit && (
                 <>
-                  <div className="spec-dock-subject">
-                    {currentCommit.subject}
-                  </div>
+                  <div className="spec-dock-subject">{currentCommit.subject}</div>
                   <div className="spec-dock-details">
                     {`HASH: ${currentCommit.short} // BY: ${currentCommit.author} // TIME: ${dayjs(currentCommit.date).format("MMM DD HH:mm")}`}
                   </div>
@@ -1813,10 +1755,7 @@ function SpecEvolutionViewerInner() {
                 {BUCKETS.map((b) => (
                   <div key={b.id} className="legend-item">
                     <div className="legend-item-header">
-                      <div
-                        className="legend-dot"
-                        style={{ background: b.color }}
-                      />
+                      <div className="legend-dot" style={{ background: b.color }} />
                       <span className="legend-item-name">{b.name}</span>
                     </div>
                     <div className="legend-item-desc">{b.desc}</div>
@@ -1854,7 +1793,7 @@ export default function SpecEvolutionViewer() {
             retry: 1,
           },
         },
-      })
+      }),
   );
 
   return (

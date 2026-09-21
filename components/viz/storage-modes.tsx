@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Database, Layers, Check, X, Clock, Shield } from "lucide-react";
-import VizContainer from "@/components/viz/viz-container";
-import { VizExposition } from "./viz-exposition";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Check, Clock, Database, Layers, Shield, X } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { FrankenJargon } from "@/components/franken-jargon";
 import Stepper, { type Step } from "@/components/viz/stepper";
+import VizContainer from "@/components/viz/viz-container";
+import { VizExposition } from "./viz-exposition";
 
 /* ------------------------------------------------------------------ */
 /*  Steps                                                              */
@@ -15,23 +15,28 @@ import Stepper, { type Step } from "@/components/viz/stepper";
 const STEPS: Step[] = [
   {
     label: "File layout",
-    description: "Compatibility mode uses a standard B-tree file. Native ECS mode uses an append-only segment chain with inline parity blocks.",
+    description:
+      "Compatibility mode uses a standard B-tree file. Native ECS mode uses an append-only segment chain with inline parity blocks.",
   },
   {
     label: "INSERT",
-    description: "Compatibility: cell inserted in-place in the B-tree page. ECS: new immutable page version appended to the segment chain.",
+    description:
+      "Compatibility: cell inserted in-place in the B-tree page. ECS: new immutable page version appended to the segment chain.",
   },
   {
     label: "UPDATE",
-    description: "Compatibility: cell overwritten in the existing page. ECS: old version kept, new version appended. History preserved.",
+    description:
+      "Compatibility: cell overwritten in the existing page. ECS: old version kept, new version appended. History preserved.",
   },
   {
     label: "Corruption",
-    description: "Compatibility: damaged page has no recovery path. ECS: RaptorQ parity detects and repairs corruption automatically.",
+    description:
+      "Compatibility: damaged page has no recovery path. ECS: RaptorQ parity detects and repairs corruption automatically.",
   },
   {
     label: "Time-travel query",
-    description: "Compatibility: not supported, only the current state exists. ECS: historical versions retrieved directly from the append-only chain.",
+    description:
+      "Compatibility: not supported, only the current state exists. ECS: historical versions retrieved directly from the append-only chain.",
   },
   {
     label: "Trade-offs",
@@ -179,7 +184,10 @@ function getEcsVis(step: number): PanelVis {
           { label: "→", color: "#115e59" },
         ],
         annotation: "Time-travel: any version instantly retrievable",
-        badge: { text: "SUPPORTED", color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5" },
+        badge: {
+          text: "SUPPORTED",
+          color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5",
+        },
       };
     case 5:
       return {
@@ -272,12 +280,8 @@ function ModePanel({
                     className="h-2.5 w-2.5 rounded-sm flex-shrink-0"
                     style={{ backgroundColor: block.color }}
                   />
-                  <span className="text-xs font-mono font-bold text-slate-300">
-                    {block.label}
-                  </span>
-                  {block.status === "error" && (
-                    <X className="h-3.5 w-3.5 text-red-400 ml-auto" />
-                  )}
+                  <span className="text-xs font-mono font-bold text-slate-300">{block.label}</span>
+                  {block.status === "error" && <X className="h-3.5 w-3.5 text-red-400 ml-auto" />}
                   {block.status === "repair" && (
                     <Shield className="h-3.5 w-3.5 text-emerald-400 ml-auto" />
                   )}
@@ -314,7 +318,13 @@ function ModePanel({
 /*  Trade-off cards (step 5)                                           */
 /* ------------------------------------------------------------------ */
 
-function TradeoffCards({ step, prefersReducedMotion }: { step: number; prefersReducedMotion: boolean | null }) {
+function TradeoffCards({
+  step,
+  prefersReducedMotion,
+}: {
+  step: number;
+  prefersReducedMotion: boolean | null;
+}) {
   if (step !== 5) return null;
 
   return (
@@ -330,11 +340,22 @@ function TradeoffCards({ step, prefersReducedMotion }: { step: number; prefersRe
           Compatibility Mode
         </h4>
         <ul className="space-y-1.5 text-[11px] text-slate-400">
-          <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Drop-in .sqlite3 replacement</li>
-          <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Works with existing tooling</li>
-          <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Smaller file size</li>
-          <li className="flex items-center gap-2"><X className="h-3 w-3 text-red-400 flex-shrink-0" /> No self-healing</li>
-          <li className="flex items-center gap-2"><X className="h-3 w-3 text-red-400 flex-shrink-0" /> No time-travel</li>
+          <li className="flex items-center gap-2">
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Drop-in .sqlite3
+            replacement
+          </li>
+          <li className="flex items-center gap-2">
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Works with existing tooling
+          </li>
+          <li className="flex items-center gap-2">
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Smaller file size
+          </li>
+          <li className="flex items-center gap-2">
+            <X className="h-3 w-3 text-red-400 flex-shrink-0" /> No self-healing
+          </li>
+          <li className="flex items-center gap-2">
+            <X className="h-3 w-3 text-red-400 flex-shrink-0" /> No time-travel
+          </li>
         </ul>
       </div>
       <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 p-4">
@@ -343,11 +364,21 @@ function TradeoffCards({ step, prefersReducedMotion }: { step: number; prefersRe
           Native ECS Mode
         </h4>
         <ul className="space-y-1.5 text-[11px] text-slate-400">
-          <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> RaptorQ self-healing</li>
-          <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Time-travel queries</li>
-          <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Append-only safety</li>
-          <li className="flex items-center gap-2"><Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Content-addressed pages</li>
-          <li className="flex items-center gap-2"><Clock className="h-3 w-3 text-amber-400 flex-shrink-0" /> ~20% more disk usage</li>
+          <li className="flex items-center gap-2">
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> RaptorQ self-healing
+          </li>
+          <li className="flex items-center gap-2">
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Time-travel queries
+          </li>
+          <li className="flex items-center gap-2">
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Append-only safety
+          </li>
+          <li className="flex items-center gap-2">
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Content-addressed pages
+          </li>
+          <li className="flex items-center gap-2">
+            <Clock className="h-3 w-3 text-amber-400 flex-shrink-0" /> ~20% more disk usage
+          </li>
         </ul>
       </div>
     </motion.div>
@@ -408,17 +439,46 @@ export default function StorageModes() {
       <VizExposition
         whatItIs={
           <>
-            <p>You are comparing FrankenSQLite&apos;s two storage modes side by side. <strong>Compatibility mode</strong> (left) reads and writes standard <code>.sqlite3</code> files, maintaining byte-level compatibility with C SQLite and every existing SQLite tool. <strong>Native <FrankenJargon term="ecs">ECS</FrankenJargon> mode</strong> (right) uses an append-only <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon> format with built-in <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> self-healing.</p>
+            <p>
+              You are comparing FrankenSQLite&apos;s two storage modes side by side.{" "}
+              <strong>Compatibility mode</strong> (left) reads and writes standard{" "}
+              <code>.sqlite3</code> files, maintaining byte-level compatibility with C SQLite and
+              every existing SQLite tool.{" "}
+              <strong>
+                Native <FrankenJargon term="ecs">ECS</FrankenJargon> mode
+              </strong>{" "}
+              (right) uses an append-only{" "}
+              <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon> format with built-in{" "}
+              <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> self-healing.
+            </p>
           </>
         }
         howToUse={
           <>
-            <p>Step through the 6 stages to see how the same write operation flows through each mode. In Compatibility mode, observe the traditional page-update path with journaling. In <FrankenJargon term="ecs">ECS</FrankenJargon> mode, observe the append-only path where new <FrankenJargon term="cow">page versions</FrankenJargon> and <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> are written sequentially. Notice where the two modes diverge: in-place update vs. append, no repair symbols vs. full <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> coverage.</p>
+            <p>
+              Step through the 6 stages to see how the same write operation flows through each mode.
+              In Compatibility mode, observe the traditional page-update path with journaling. In{" "}
+              <FrankenJargon term="ecs">ECS</FrankenJargon> mode, observe the append-only path where
+              new <FrankenJargon term="cow">page versions</FrankenJargon> and{" "}
+              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> are written
+              sequentially. Notice where the two modes diverge: in-place update vs. append, no
+              repair symbols vs. full <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>{" "}
+              coverage.
+            </p>
           </>
         }
         whyItMatters={
           <>
-            <p>Compatibility mode lets you adopt FrankenSQLite with zero migration effort: your existing databases, backup tools, and SQLite utilities continue to work unchanged. When durability requirements exceed what the filesystem provides, switching to native <FrankenJargon term="ecs">ECS</FrankenJargon> mode adds <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> self-healing, <FrankenJargon term="content-addressed">content-addressed</FrankenJargon> page versions, and append-only crash safety at the cost of additional disk space. You choose the trade-off per database.</p>
+            <p>
+              Compatibility mode lets you adopt FrankenSQLite with zero migration effort: your
+              existing databases, backup tools, and SQLite utilities continue to work unchanged.
+              When durability requirements exceed what the filesystem provides, switching to native{" "}
+              <FrankenJargon term="ecs">ECS</FrankenJargon> mode adds{" "}
+              <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> self-healing,{" "}
+              <FrankenJargon term="content-addressed">content-addressed</FrankenJargon> page
+              versions, and append-only crash safety at the cost of additional disk space. You
+              choose the trade-off per database.
+            </p>
           </>
         }
       />

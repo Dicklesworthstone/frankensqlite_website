@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "framer-motion";
+import { useEffect, useRef, useState } from "react";
 
 interface AnimatedNumberProps {
   value: number;
@@ -13,7 +13,15 @@ interface AnimatedNumberProps {
   className?: string;
 }
 
-export function AnimatedNumber({ value, prefix = "", suffix = "", duration = 2000, isVisible = true, decimals, className }: AnimatedNumberProps) {
+export function AnimatedNumber({
+  value,
+  prefix = "",
+  suffix = "",
+  duration = 2000,
+  isVisible = true,
+  decimals,
+  className,
+}: AnimatedNumberProps) {
   const prefersReducedMotion = useReducedMotion();
   const [count, setCount] = useState(0);
   const [hasAnimated, setHasAnimated] = useState(false);
@@ -22,13 +30,16 @@ export function AnimatedNumber({ value, prefix = "", suffix = "", duration = 200
 
   useEffect(() => {
     if (prefersReducedMotion && !hasAnimated) {
-      const hydrationId = setTimeout(() => { setCount(value); setHasAnimated(true); }, 0);
+      const hydrationId = setTimeout(() => {
+        setCount(value);
+        setHasAnimated(true);
+      }, 0);
       return () => clearTimeout(hydrationId);
     }
     return undefined;
   }, [prefersReducedMotion, value, hasAnimated]);
 
-  const easeOutExpo = (t: number) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t));
+  const easeOutExpo = (t: number) => (t === 1 ? 1 : 1 - 2 ** (-10 * t));
 
   useEffect(() => {
     if (prefersReducedMotion || !isVisible || hasAnimated) return;
@@ -37,26 +48,50 @@ export function AnimatedNumber({ value, prefix = "", suffix = "", duration = 200
       const elapsed = timestamp - (startTimeRef.current ?? timestamp);
       const progress = Math.min(elapsed / duration, 1);
       setCount(easeOutExpo(progress) * value);
-      if (progress < 1) { frameRef.current = requestAnimationFrame(animate); }
-      else { setCount(value); setHasAnimated(true); }
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(animate);
+      } else {
+        setCount(value);
+        setHasAnimated(true);
+      }
     };
     startTimeRef.current = null;
     frameRef.current = requestAnimationFrame(animate);
-    return () => { if (frameRef.current !== null) cancelAnimationFrame(frameRef.current); };
+    return () => {
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    };
   }, [isVisible, hasAnimated, value, duration, prefersReducedMotion]);
 
   let displayNumber: string;
   if (typeof decimals === "number") displayNumber = count.toFixed(decimals);
   else displayNumber = value % 1 === 0 ? Math.round(count).toString() : count.toFixed(1);
   if (hasAnimated || prefersReducedMotion) {
-    displayNumber = typeof decimals === "number" ? value.toFixed(decimals) : (value % 1 === 0 ? value.toString() : value.toFixed(1));
+    displayNumber =
+      typeof decimals === "number"
+        ? value.toFixed(decimals)
+        : value % 1 === 0
+          ? value.toString()
+          : value.toFixed(1);
   }
-  const srValue = typeof decimals === "number" ? value.toFixed(decimals) : (value % 1 === 0 ? value.toString() : value.toFixed(1));
+  const srValue =
+    typeof decimals === "number"
+      ? value.toFixed(decimals)
+      : value % 1 === 0
+        ? value.toString()
+        : value.toFixed(1);
 
   return (
     <span className={className}>
-      <span className="sr-only">{prefix}{srValue}{suffix}</span>
-      <span className="tabular-nums" aria-hidden="true">{prefix}{displayNumber}{suffix}</span>
+      <span className="sr-only">
+        {prefix}
+        {srValue}
+        {suffix}
+      </span>
+      <span className="tabular-nums" aria-hidden="true">
+        {prefix}
+        {displayNumber}
+        {suffix}
+      </span>
     </span>
   );
 }

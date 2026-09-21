@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { GitBranch } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { FrankenJargon } from "@/components/franken-jargon";
+import Stepper, { type Step } from "@/components/viz/stepper";
 import VizContainer from "@/components/viz/viz-container";
 import { VizExposition } from "./viz-exposition";
-import Stepper, { type Step } from "@/components/viz/stepper";
-import { FrankenJargon } from "@/components/franken-jargon";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -87,7 +87,7 @@ const scenarios: ScenarioDef[] = [
       {
         label: "Safe Merge Ladder -- operations commute",
         description:
-          "\"Commuting\" means the order doesn't matter: applying A then B produces the same page as applying B then A. The ladder inspects cell-level write-sets and confirms the operations commute.",
+          '"Commuting" means the order doesn\'t matter: applying A then B produces the same page as applying B then A. The ladder inspects cell-level write-sets and confirms the operations commute.',
       },
       {
         label: "Deterministic rebase succeeds -- both committed",
@@ -260,15 +260,7 @@ const statusLabels: Record<TxnStatus, string> = {
   retrying: "Retrying...",
 };
 
-function TxnCard({
-  x,
-  y,
-  txn,
-}: {
-  x: number;
-  y: number;
-  txn: TxnState;
-}) {
+function TxnCard({ x, y, txn }: { x: number; y: number; txn: TxnState }) {
   const prefersReducedMotion = useReducedMotion();
   const fill = statusColors[txn.status];
   const w = 150;
@@ -302,7 +294,11 @@ function TxnCard({
         stroke={fill}
         strokeWidth={2}
         animate={prefersReducedMotion ? { opacity: 0.35 } : { opacity: [0.2, 0.5, 0.2] }}
-        transition={prefersReducedMotion ? { duration: 0 } : { duration: 2, repeat: Infinity, ease: "easeInOut" }}
+        transition={
+          prefersReducedMotion
+            ? { duration: 0 }
+            : { duration: 2, repeat: Infinity, ease: "easeInOut" }
+        }
       />
       {/* Label */}
       <text
@@ -316,24 +312,11 @@ function TxnCard({
         {txn.label}
       </text>
       {/* Page + cells */}
-      <text
-        x={x + w / 2}
-        y={y + 42}
-        textAnchor="middle"
-        fill="#94a3b8"
-        fontSize={11}
-      >
+      <text x={x + w / 2} y={y + 42} textAnchor="middle" fill="#94a3b8" fontSize={11}>
         {txn.page} cell {txn.cells}
       </text>
       {/* Status */}
-      <text
-        x={x + w / 2}
-        y={y + 62}
-        textAnchor="middle"
-        fill={fill}
-        fontSize={11}
-        fontWeight={600}
-      >
+      <text x={x + w / 2} y={y + 62} textAnchor="middle" fill={fill} fontSize={11} fontWeight={600}>
         {statusLabels[txn.status]}
       </text>
       {/* Status icon */}
@@ -469,10 +452,7 @@ export default function ConflictLadder() {
   const [currentStep, setCurrentStep] = useState(0);
 
   const scenario = scenarios[scenarioIdx];
-  const visual = useMemo(
-    () => getVisual(scenarioIdx, currentStep),
-    [scenarioIdx, currentStep],
-  );
+  const visual = useMemo(() => getVisual(scenarioIdx, currentStep), [scenarioIdx, currentStep]);
 
   const handleScenarioChange = useCallback((idx: number) => {
     setScenarioIdx(idx);
@@ -510,40 +490,39 @@ export default function ConflictLadder() {
   // Decision tree Y positions
   const treeStartY = 140;
   const treeGap = 44;
-  const nodePositions: Record<string, { x: number; y: number; label: string }> =
-    {
-      start: { x: centerX, y: treeStartY, label: "Begin Commit" },
-      "page-check": {
-        x: centerX,
-        y: treeStartY + treeGap,
-        label: "Page Overlap Check",
-      },
-      ssi: {
-        x: centerX - 80,
-        y: treeStartY + treeGap * 2,
-        label: "SSI Dependency",
-      },
-      fcw: {
-        x: centerX,
-        y: treeStartY + treeGap * 2,
-        label: "First-Committer-Wins",
-      },
-      "merge-check": {
-        x: centerX,
-        y: treeStartY + treeGap * 3,
-        label: "Safe Merge Ladder",
-      },
-      commit: {
-        x: centerX - 80,
-        y: treeStartY + treeGap * 4,
-        label: "Commit OK",
-      },
-      abort: {
-        x: centerX + 80,
-        y: treeStartY + treeGap * 4,
-        label: "SQLITE_BUSY",
-      },
-    };
+  const nodePositions: Record<string, { x: number; y: number; label: string }> = {
+    start: { x: centerX, y: treeStartY, label: "Begin Commit" },
+    "page-check": {
+      x: centerX,
+      y: treeStartY + treeGap,
+      label: "Page Overlap Check",
+    },
+    ssi: {
+      x: centerX - 80,
+      y: treeStartY + treeGap * 2,
+      label: "SSI Dependency",
+    },
+    fcw: {
+      x: centerX,
+      y: treeStartY + treeGap * 2,
+      label: "First-Committer-Wins",
+    },
+    "merge-check": {
+      x: centerX,
+      y: treeStartY + treeGap * 3,
+      label: "Safe Merge Ladder",
+    },
+    commit: {
+      x: centerX - 80,
+      y: treeStartY + treeGap * 4,
+      label: "Commit OK",
+    },
+    abort: {
+      x: centerX + 80,
+      y: treeStartY + treeGap * 4,
+      label: "SQLITE_BUSY",
+    },
+  };
 
   // Edge definitions: [from, to]
   const edges: [string, string][] = [
@@ -557,9 +536,7 @@ export default function ConflictLadder() {
   ];
 
   // Which edges are active is derived from active nodes
-  const activeEdges = edges.filter(([from, to]) =>
-    isActive(from) && isActive(to),
-  );
+  const activeEdges = edges.filter(([from, to]) => isActive(from) && isActive(to));
 
   // Which nodes to render (skip ssi for scenario 0 and 1)
   const visibleNodes =
@@ -570,7 +547,13 @@ export default function ConflictLadder() {
   return (
     <VizContainer
       title="Write Conflict Resolution Ladder"
-      description={<>Step through three scenarios to see how FrankenSQLite resolves concurrent B-tree page modifications using <FrankenJargon term="fcw">First-Committer-Wins</FrankenJargon> and the <FrankenJargon term="safe-merge-ladder">safe merge ladder</FrankenJargon>.</>}
+      description={
+        <>
+          Step through three scenarios to see how FrankenSQLite resolves concurrent B-tree page
+          modifications using <FrankenJargon term="fcw">First-Committer-Wins</FrankenJargon> and the{" "}
+          <FrankenJargon term="safe-merge-ladder">safe merge ladder</FrankenJargon>.
+        </>
+      }
       minHeight={520}
     >
       <div className="p-3 md:p-6 flex flex-col gap-4">
@@ -634,207 +617,260 @@ export default function ConflictLadder() {
                   className="w-full h-auto min-w-[600px] md:min-w-full mx-auto"
                   style={{ minHeight: 240 }}
                 >
-                {/* Defs for arrow markers */}
-                <defs>
-                  <marker
-                    id="arrow-active"
-                    viewBox="0 0 10 10"
-                    refX={8}
-                    refY={5}
-                    markerWidth={6}
-                    markerHeight={6}
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
-                  </marker>
-                  <marker
-                    id="arrow-inactive"
-                    viewBox="0 0 10 10"
-                    refX={8}
-                    refY={5}
-                    markerWidth={6}
-                    markerHeight={6}
-                    orient="auto-start-reverse"
-                  >
-                    <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e293b" />
-                  </marker>
-                </defs>
+                  {/* Defs for arrow markers */}
+                  <defs>
+                    <marker
+                      id="arrow-active"
+                      viewBox="0 0 10 10"
+                      refX={8}
+                      refY={5}
+                      markerWidth={6}
+                      markerHeight={6}
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8" />
+                    </marker>
+                    <marker
+                      id="arrow-inactive"
+                      viewBox="0 0 10 10"
+                      refX={8}
+                      refY={5}
+                      markerWidth={6}
+                      markerHeight={6}
+                      orient="auto-start-reverse"
+                    >
+                      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1e293b" />
+                    </marker>
+                  </defs>
 
-                {/* Transaction cards */}
-                <TxnCard x={txnAx} y={txnY} txn={visual.txnA} />
-                <TxnCard x={txnBx} y={txnY} txn={visual.txnB} />
+                  {/* Transaction cards */}
+                  <TxnCard x={txnAx} y={txnY} txn={visual.txnA} />
+                  <TxnCard x={txnBx} y={txnY} txn={visual.txnB} />
 
-                {/* Lines from txn cards to decision tree start */}
-                <Arrow
-                  x1={txnAx + 75}
-                  y1={txnY + 90}
-                  x2={centerX}
-                  y2={treeStartY - 15}
-                  active={isActive("start")}
-                  color="#94a3b8"
-                />
-                <Arrow
-                  x1={txnBx + 75}
-                  y1={txnY + 90}
-                  x2={centerX}
-                  y2={treeStartY - 15}
-                  active={isActive("start")}
-                  color="#94a3b8"
-                />
+                  {/* Lines from txn cards to decision tree start */}
+                  <Arrow
+                    x1={txnAx + 75}
+                    y1={txnY + 90}
+                    x2={centerX}
+                    y2={treeStartY - 15}
+                    active={isActive("start")}
+                    color="#94a3b8"
+                  />
+                  <Arrow
+                    x1={txnBx + 75}
+                    y1={txnY + 90}
+                    x2={centerX}
+                    y2={treeStartY - 15}
+                    active={isActive("start")}
+                    color="#94a3b8"
+                  />
 
-                {/* Decision tree edges */}
-                {edges.map(([from, to]) => {
-                  if (!visibleNodes.includes(from) || !visibleNodes.includes(to))
-                    return null;
-                  const a = nodePositions[from];
-                  const b = nodePositions[to];
-                  const edgeActive = activeEdges.some(
-                    ([ef, et]) => ef === from && et === to,
-                  );
-                  return (
-                    <Arrow
-                      key={`${from}-${to}`}
-                      x1={a.x}
-                      y1={a.y + 15}
-                      x2={b.x}
-                      y2={b.y - 15}
-                      active={edgeActive}
-                      color={edgeActive ? "#94a3b8" : "#1e293b"}
-                    />
-                  );
-                })}
+                  {/* Decision tree edges */}
+                  {edges.map(([from, to]) => {
+                    if (!visibleNodes.includes(from) || !visibleNodes.includes(to)) return null;
+                    const a = nodePositions[from];
+                    const b = nodePositions[to];
+                    const edgeActive = activeEdges.some(([ef, et]) => ef === from && et === to);
+                    return (
+                      <Arrow
+                        key={`${from}-${to}`}
+                        x1={a.x}
+                        y1={a.y + 15}
+                        x2={b.x}
+                        y2={b.y - 15}
+                        active={edgeActive}
+                        color={edgeActive ? "#94a3b8" : "#1e293b"}
+                      />
+                    );
+                  })}
 
-                {/* Decision tree nodes */}
-                {visibleNodes.map((id) => {
-                  const n = nodePositions[id];
-                  return (
-                    <DecisionNode
-                      key={id}
-                      id={id}
-                      x={n.x}
-                      y={n.y}
-                      label={n.label}
-                      active={isActive(id)}
-                      variant={nodeVariant(id)}
-                    />
-                  );
-                })}
+                  {/* Decision tree nodes */}
+                  {visibleNodes.map((id) => {
+                    const n = nodePositions[id];
+                    return (
+                      <DecisionNode
+                        key={id}
+                        id={id}
+                        x={n.x}
+                        y={n.y}
+                        label={n.label}
+                        active={isActive(id)}
+                        variant={nodeVariant(id)}
+                      />
+                    );
+                  })}
 
-                {/* Center annotation */}
-                <motion.text
-                  x={centerX}
-                  y={svgH - 20}
-                  textAnchor="middle"
-                  fill="#94a3b8"
-                  fontSize={12}
-                  fontWeight={600}
-                  key={visual.annotation}
-                  initial={{ opacity: 0, y: svgH - 12 }}
-                  animate={{ opacity: 1, y: svgH - 20 }}
-                  transition={{ duration: 0.3 }}
-                >
-                  {visual.annotation}
-                </motion.text>
-
-                {/* Relation indicator between txn cards */}
-                {visual.relation === "independent" && (
+                  {/* Center annotation */}
                   <motion.text
                     x={centerX}
-                    y={txnY + 50}
+                    y={svgH - 20}
                     textAnchor="middle"
-                    fill="#22c55e"
-                    fontSize={18}
-                    fontWeight={700}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 0.6, scale: 1 }}
+                    fill="#94a3b8"
+                    fontSize={12}
+                    fontWeight={600}
+                    key={visual.annotation}
+                    initial={{ opacity: 0, y: svgH - 12 }}
+                    animate={{ opacity: 1, y: svgH - 20 }}
                     transition={{ duration: 0.3 }}
                   >
-                    {"| |"}
+                    {visual.annotation}
                   </motion.text>
-                )}
-                {visual.relation === "merge" && (
-                  <motion.text
-                    x={centerX}
-                    y={txnY + 50}
-                    textAnchor="middle"
-                    fill="#eab308"
-                    fontSize={18}
-                    fontWeight={700}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 0.6, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {"\u2194"}
-                  </motion.text>
-                )}
-                {visual.relation === "conflict" && (
-                  <motion.text
-                    x={centerX}
-                    y={txnY + 50}
-                    textAnchor="middle"
-                    fill="#ef4444"
-                    fontSize={18}
-                    fontWeight={700}
-                    initial={{ opacity: 0, scale: 0.5 }}
-                    animate={{ opacity: 0.6, scale: 1 }}
-                    transition={{ duration: 0.3 }}
-                  >
-                    {"\u26A1"}
-                  </motion.text>
-                )}
 
-                {/* Result icons for committed / conflict */}
-                {visual.txnA.status === "committed" && (
-                  <motion.g
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 400, delay: 0.1 }}
-                  >
-                    <circle cx={txnAx + 150 + 14} cy={txnY + 14} r={10} fill="#052e16" stroke="#22c55e" strokeWidth={1.5} />
-                    <text x={txnAx + 150 + 14} y={txnY + 18} textAnchor="middle" fill="#22c55e" fontSize={12} fontWeight={700}>
-                      {"\u2713"}
-                    </text>
-                  </motion.g>
-                )}
-                {visual.txnB.status === "committed" && (
-                  <motion.g
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 400, delay: 0.15 }}
-                  >
-                    <circle cx={txnBx - 14} cy={txnY + 14} r={10} fill="#052e16" stroke="#22c55e" strokeWidth={1.5} />
-                    <text x={txnBx - 14} y={txnY + 18} textAnchor="middle" fill="#22c55e" fontSize={12} fontWeight={700}>
-                      {"\u2713"}
-                    </text>
-                  </motion.g>
-                )}
-                {visual.txnB.status === "conflict" && (
-                  <motion.g
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 400, delay: 0.15 }}
-                  >
-                    <circle cx={txnBx - 14} cy={txnY + 14} r={10} fill="#2a0a0a" stroke="#ef4444" strokeWidth={1.5} />
-                    <text x={txnBx - 14} y={txnY + 18} textAnchor="middle" fill="#ef4444" fontSize={12} fontWeight={700}>
-                      {"\u2717"}
-                    </text>
-                  </motion.g>
-                )}
-                {visual.txnB.status === "retrying" && (
-                  <motion.g
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 400, delay: 0.15 }}
-                  >
-                    <circle cx={txnBx - 14} cy={txnY + 14} r={10} fill="#1c1a05" stroke="#f59e0b" strokeWidth={1.5} />
-                    <text x={txnBx - 14} y={txnY + 18} textAnchor="middle" fill="#f59e0b" fontSize={12} fontWeight={700}>
-                      {"\u21BB"}
-                    </text>
-                  </motion.g>
-                )}
-              </svg>
-            </motion.div>
-          </AnimatePresence>
+                  {/* Relation indicator between txn cards */}
+                  {visual.relation === "independent" && (
+                    <motion.text
+                      x={centerX}
+                      y={txnY + 50}
+                      textAnchor="middle"
+                      fill="#22c55e"
+                      fontSize={18}
+                      fontWeight={700}
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 0.6, scale: 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {"| |"}
+                    </motion.text>
+                  )}
+                  {visual.relation === "merge" && (
+                    <motion.text
+                      x={centerX}
+                      y={txnY + 50}
+                      textAnchor="middle"
+                      fill="#eab308"
+                      fontSize={18}
+                      fontWeight={700}
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 0.6, scale: 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {"\u2194"}
+                    </motion.text>
+                  )}
+                  {visual.relation === "conflict" && (
+                    <motion.text
+                      x={centerX}
+                      y={txnY + 50}
+                      textAnchor="middle"
+                      fill="#ef4444"
+                      fontSize={18}
+                      fontWeight={700}
+                      initial={{ opacity: 0, scale: 0.5 }}
+                      animate={{ opacity: 0.6, scale: 1 }}
+                      transition={{ duration: 0.3 }}
+                    >
+                      {"\u26A1"}
+                    </motion.text>
+                  )}
+
+                  {/* Result icons for committed / conflict */}
+                  {visual.txnA.status === "committed" && (
+                    <motion.g
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 400, delay: 0.1 }}
+                    >
+                      <circle
+                        cx={txnAx + 150 + 14}
+                        cy={txnY + 14}
+                        r={10}
+                        fill="#052e16"
+                        stroke="#22c55e"
+                        strokeWidth={1.5}
+                      />
+                      <text
+                        x={txnAx + 150 + 14}
+                        y={txnY + 18}
+                        textAnchor="middle"
+                        fill="#22c55e"
+                        fontSize={12}
+                        fontWeight={700}
+                      >
+                        {"\u2713"}
+                      </text>
+                    </motion.g>
+                  )}
+                  {visual.txnB.status === "committed" && (
+                    <motion.g
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 400, delay: 0.15 }}
+                    >
+                      <circle
+                        cx={txnBx - 14}
+                        cy={txnY + 14}
+                        r={10}
+                        fill="#052e16"
+                        stroke="#22c55e"
+                        strokeWidth={1.5}
+                      />
+                      <text
+                        x={txnBx - 14}
+                        y={txnY + 18}
+                        textAnchor="middle"
+                        fill="#22c55e"
+                        fontSize={12}
+                        fontWeight={700}
+                      >
+                        {"\u2713"}
+                      </text>
+                    </motion.g>
+                  )}
+                  {visual.txnB.status === "conflict" && (
+                    <motion.g
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 400, delay: 0.15 }}
+                    >
+                      <circle
+                        cx={txnBx - 14}
+                        cy={txnY + 14}
+                        r={10}
+                        fill="#2a0a0a"
+                        stroke="#ef4444"
+                        strokeWidth={1.5}
+                      />
+                      <text
+                        x={txnBx - 14}
+                        y={txnY + 18}
+                        textAnchor="middle"
+                        fill="#ef4444"
+                        fontSize={12}
+                        fontWeight={700}
+                      >
+                        {"\u2717"}
+                      </text>
+                    </motion.g>
+                  )}
+                  {visual.txnB.status === "retrying" && (
+                    <motion.g
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 400, delay: 0.15 }}
+                    >
+                      <circle
+                        cx={txnBx - 14}
+                        cy={txnY + 14}
+                        r={10}
+                        fill="#1c1a05"
+                        stroke="#f59e0b"
+                        strokeWidth={1.5}
+                      />
+                      <text
+                        x={txnBx - 14}
+                        y={txnY + 18}
+                        textAnchor="middle"
+                        fill="#f59e0b"
+                        fontSize={12}
+                        fontWeight={700}
+                      >
+                        {"\u21BB"}
+                      </text>
+                    </motion.g>
+                  )}
+                </svg>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
 
@@ -850,19 +886,47 @@ export default function ConflictLadder() {
       <VizExposition
         whatItIs={
           <>
-            <p>You are looking at a decision tree for FrankenSQLite&apos;s conflict resolution logic. Two concurrent transactions have modified the same <FrankenJargon term="btree">B-tree page</FrankenJargon> and are trying to commit. The tree shows which resolution strategy the <FrankenJargon term="safe-merge-ladder">Safe Merge Ladder</FrankenJargon> selects based on the nature of the conflict.</p>
-            <p>Three scenarios demonstrate the spectrum: non-conflicting writes (different cells on the same page), commuting writes (independent operations that can be reordered), and true conflicts (overlapping byte ranges that cannot be merged).</p>
+            <p>
+              You are looking at a decision tree for FrankenSQLite&apos;s conflict resolution logic.
+              Two concurrent transactions have modified the same{" "}
+              <FrankenJargon term="btree">B-tree page</FrankenJargon> and are trying to commit. The
+              tree shows which resolution strategy the{" "}
+              <FrankenJargon term="safe-merge-ladder">Safe Merge Ladder</FrankenJargon> selects
+              based on the nature of the conflict.
+            </p>
+            <p>
+              Three scenarios demonstrate the spectrum: non-conflicting writes (different cells on
+              the same page), commuting writes (independent operations that can be reordered), and
+              true conflicts (overlapping byte ranges that cannot be merged).
+            </p>
           </>
         }
         howToUse={
           <>
-            <p>Switch between the three scenario tabs to see different conflict types. Step through each scenario to watch the decision tree highlight the active node and update the transaction status cards. In the non-conflicting scenario, both transactions commit immediately. In the commuting scenario, <FrankenJargon term="foata">FOATA reordering</FrankenJargon> finds a valid merge. In the true conflict scenario, the engine falls through to abort.</p>
-            <p>Pay attention to how each rung of the ladder handles a wider class of conflicts than the one above it.</p>
+            <p>
+              Switch between the three scenario tabs to see different conflict types. Step through
+              each scenario to watch the decision tree highlight the active node and update the
+              transaction status cards. In the non-conflicting scenario, both transactions commit
+              immediately. In the commuting scenario,{" "}
+              <FrankenJargon term="foata">FOATA reordering</FrankenJargon> finds a valid merge. In
+              the true conflict scenario, the engine falls through to abort.
+            </p>
+            <p>
+              Pay attention to how each rung of the ladder handles a wider class of conflicts than
+              the one above it.
+            </p>
           </>
         }
         whyItMatters={
           <>
-            <p>In production workloads, the vast majority of &ldquo;conflicts&rdquo; are false positives caused by page-level granularity: two transactions happen to land on the same physical page even though they modify completely different rows. The <FrankenJargon term="safe-merge-ladder">Safe Merge Ladder</FrankenJargon> converts over 90% of these would-be <code>SQLITE_BUSY</code> errors into transparent background merges, preserving throughput that a traditional single-writer engine would sacrifice.</p>
+            <p>
+              In production workloads, the vast majority of &ldquo;conflicts&rdquo; are false
+              positives caused by page-level granularity: two transactions happen to land on the
+              same physical page even though they modify completely different rows. The{" "}
+              <FrankenJargon term="safe-merge-ladder">Safe Merge Ladder</FrankenJargon> converts
+              over 90% of these would-be <code>SQLITE_BUSY</code> errors into transparent background
+              merges, preserving throughput that a traditional single-writer engine would sacrifice.
+            </p>
           </>
         }
       />

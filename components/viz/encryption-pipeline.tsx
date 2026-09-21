@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Lock, Unlock, ShieldCheck, Key } from "lucide-react";
-import VizContainer from "@/components/viz/viz-container";
-import Stepper, { type Step } from "@/components/viz/stepper";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Key, Lock, ShieldCheck, Unlock } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
 import { FrankenJargon } from "@/components/franken-jargon";
+import Stepper, { type Step } from "@/components/viz/stepper";
+import VizContainer from "@/components/viz/viz-container";
 import { VizExposition } from "./viz-exposition";
 
 /* ------------------------------------------------------------------ */
@@ -23,31 +23,38 @@ const TOTAL_CELLS = GRID_COLS * GRID_ROWS;
 const STEPS: Step[] = [
   {
     label: "Plaintext page",
-    description: "A 4KB database page stored as raw bytes. The structured pattern is visible; anyone with disk access reads this.",
+    description:
+      "A 4KB database page stored as raw bytes. The structured pattern is visible; anyone with disk access reads this.",
   },
   {
     label: "Passphrase",
-    description: "The user provides a passphrase. This is the only secret; everything else is derived deterministically.",
+    description:
+      "The user provides a passphrase. This is the only secret; everything else is derived deterministically.",
   },
   {
     label: "Argon2id key derivation",
-    description: "Argon2id stretches the passphrase using 64MB of memory, 3 iterations, 1 lane. Deliberately slow and memory-hungry, making GPU brute-force impractical.",
+    description:
+      "Argon2id stretches the passphrase using 64MB of memory, 3 iterations, 1 lane. Deliberately slow and memory-hungry, making GPU brute-force impractical.",
   },
   {
     label: "Nonce + AAD",
-    description: "A 24-byte random nonce is generated. The page number is bound as Associated Authenticated Data (AAD), tying ciphertext to its position.",
+    description:
+      "A 24-byte random nonce is generated. The page number is bound as Associated Authenticated Data (AAD), tying ciphertext to its position.",
   },
   {
     label: "Encrypt",
-    description: "XChaCha20 encrypts the page byte-by-byte. Poly1305 computes an authentication tag. The structured pattern vanishes into randomness.",
+    description:
+      "XChaCha20 encrypts the page byte-by-byte. Poly1305 computes an authentication tag. The structured pattern vanishes into randomness.",
   },
   {
     label: "On-disk format",
-    description: "Ciphertext + 16-byte Poly1305 tag + 24-byte nonce. One compromised page reveals nothing about others. Each has a unique nonce.",
+    description:
+      "Ciphertext + 16-byte Poly1305 tag + 24-byte nonce. One compromised page reveals nothing about others. Each has a unique nonce.",
   },
   {
     label: "Decrypt & verify",
-    description: "On read: tag verified first. If any byte was tampered, decryption is rejected before it starts. Integrity proven, then plaintext restored.",
+    description:
+      "On read: tag verified first. If any byte was tampered, decryption is rejected before it starts. Integrity proven, then plaintext restored.",
   },
 ];
 
@@ -119,7 +126,7 @@ function ByteGrid({
             animate={{ backgroundColor: color }}
             transition={{
               duration: prefersReducedMotion ? 0 : scrambling ? 0.4 + (i % 5) * 0.05 : 0.3,
-              delay: prefersReducedMotion ? 0 : scrambling ? (Math.floor(i / GRID_COLS)) * 0.03 : 0,
+              delay: prefersReducedMotion ? 0 : scrambling ? Math.floor(i / GRID_COLS) * 0.03 : 0,
             }}
           />
         ))}
@@ -229,7 +236,8 @@ function InfoPanel({
           </div>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Every page gets a unique nonce. The page number is bound as AEAD, so moving ciphertext to a different page is detected.
+          Every page gets a unique nonce. The page number is bound as AEAD, so moving ciphertext to
+          a different page is detected.
         </p>
       </div>
     ),
@@ -240,7 +248,8 @@ function InfoPanel({
           <span className="text-xs font-black uppercase tracking-wider">XChaCha20-Poly1305</span>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          XChaCha20 encrypts. Poly1305 authenticates. Each byte transforms independently, and the structured pattern vanishes.
+          XChaCha20 encrypts. Poly1305 authenticates. Each byte transforms independently, and the
+          structured pattern vanishes.
         </p>
       </div>
     ),
@@ -287,7 +296,8 @@ function InfoPanel({
           <span className="text-xs font-bold text-emerald-400">Tag verified, integrity proven</span>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Tampered data is rejected before decryption. Plaintext restored only after authentication succeeds.
+          Tampered data is rejected before decryption. Plaintext restored only after authentication
+          succeeds.
         </p>
       </div>
     ),
@@ -336,8 +346,10 @@ export default function EncryptionPipeline() {
 
   // Status label
   const statusLabel = useMemo(() => {
-    if (step <= 3) return { text: "PLAINTEXT", color: "text-red-400 border-red-500/30 bg-red-500/5" };
-    if (step <= 5) return { text: "ENCRYPTED", color: "text-teal-400 border-teal-500/30 bg-teal-500/5" };
+    if (step <= 3)
+      return { text: "PLAINTEXT", color: "text-red-400 border-red-500/30 bg-red-500/5" };
+    if (step <= 5)
+      return { text: "ENCRYPTED", color: "text-teal-400 border-teal-500/30 bg-teal-500/5" };
     return { text: "DECRYPTED", color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5" };
   }, [step]);
 
@@ -353,7 +365,13 @@ export default function EncryptionPipeline() {
           <span
             className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-[0.2em] border ${statusLabel.color}`}
           >
-            {step <= 3 ? <Unlock className="h-3 w-3" /> : step <= 5 ? <Lock className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
+            {step <= 3 ? (
+              <Unlock className="h-3 w-3" />
+            ) : step <= 5 ? (
+              <Lock className="h-3 w-3" />
+            ) : (
+              <ShieldCheck className="h-3 w-3" />
+            )}
             {statusLabel.text}
           </span>
         </div>
@@ -386,24 +404,49 @@ export default function EncryptionPipeline() {
         />
       </div>
 
-      <VizExposition 
+      <VizExposition
         whatItIs={
           <>
-            <p>You are looking at the page-level encryption pipeline. It demonstrates how a 4KB B-Tree page (represented by the grid of bytes) is cryptographically secured before being written to disk.</p>
+            <p>
+              You are looking at the page-level encryption pipeline. It demonstrates how a 4KB
+              B-Tree page (represented by the grid of bytes) is cryptographically secured before
+              being written to disk.
+            </p>
           </>
         }
         howToUse={
           <>
             <p>Follow the stepper through the 6 phases.</p>
-            <div>First, an <FrankenJargon term="argon2id">Argon2id KEK</FrankenJargon> wraps the internal <FrankenJargon term="dek-kek">DEK</FrankenJargon>.</div>
-            <p>Then, the engine computes a 24-byte Nonce (Number Used Once). The page number itself is cryptographically bound into the algorithm as Authenticated Data.</p>
-            <div>Finally, the <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> algorithm scrambles the bytes into pure noise, appending a 16-byte MAC (Message Authentication Code) tag to the end.</div>
+            <div>
+              First, an <FrankenJargon term="argon2id">Argon2id KEK</FrankenJargon> wraps the
+              internal <FrankenJargon term="dek-kek">DEK</FrankenJargon>.
+            </div>
+            <p>
+              Then, the engine computes a 24-byte Nonce (Number Used Once). The page number itself
+              is cryptographically bound into the algorithm as Authenticated Data.
+            </p>
+            <div>
+              Finally, the <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> algorithm
+              scrambles the bytes into pure noise, appending a 16-byte MAC (Message Authentication
+              Code) tag to the end.
+            </div>
           </>
         }
         whyItMatters={
           <>
-            <p>In standard SQLite, encryption requires buying a proprietary, closed-source add-on (SEE). In FrankenSQLite, it is deeply integrated into the open-source storage layer at the <FrankenJargon term="btree">B-tree</FrankenJargon> page level.</p>
-            <div>Because it uses an <FrankenJargon term="aead">AEAD</FrankenJargon> cipher with a <FrankenJargon term="dek-kek">DEK/KEK</FrankenJargon> hierarchy derived via <FrankenJargon term="argon2id">Argon2id</FrankenJargon>, it guarantees both confidentiality and integrity. If a malicious actor flips a single bit on disk, or tries to copy an encrypted page from one part of the file to another, the Poly1305 authentication fails instantly, rejecting the read before decryption even begins.</div>
+            <p>
+              In standard SQLite, encryption requires buying a proprietary, closed-source add-on
+              (SEE). In FrankenSQLite, it is deeply integrated into the open-source storage layer at
+              the <FrankenJargon term="btree">B-tree</FrankenJargon> page level.
+            </p>
+            <div>
+              Because it uses an <FrankenJargon term="aead">AEAD</FrankenJargon> cipher with a{" "}
+              <FrankenJargon term="dek-kek">DEK/KEK</FrankenJargon> hierarchy derived via{" "}
+              <FrankenJargon term="argon2id">Argon2id</FrankenJargon>, it guarantees both
+              confidentiality and integrity. If a malicious actor flips a single bit on disk, or
+              tries to copy an encrypted page from one part of the file to another, the Poly1305
+              authentication fails instantly, rejecting the read before decryption even begins.
+            </div>
           </>
         }
       />

@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Play, Pause, RotateCcw, Zap, Database, AlertTriangle } from "lucide-react";
-import VizContainer from "@/components/viz/viz-container";
-import Stepper, { type Step } from "@/components/viz/stepper";
-import { useSimulation } from "@/hooks/use-simulation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AlertTriangle, Database, Pause, Play, RotateCcw, Zap } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { FrankenJargon } from "@/components/franken-jargon";
+import Stepper, { type Step } from "@/components/viz/stepper";
+import VizContainer from "@/components/viz/viz-container";
+import { useSimulation } from "@/hooks/use-simulation";
 import { VizExposition } from "./viz-exposition";
 
 /* ------------------------------------------------------------------ */
@@ -50,15 +50,18 @@ const MAX_WAL_FRAMES = 20;
 const CHECKPOINT_STEPS: Step[] = [
   {
     label: "WAL threshold reached",
-    description: "The WAL has accumulated enough frames. Time to flush changes back to the main database file.",
+    description:
+      "The WAL has accumulated enough frames. Time to flush changes back to the main database file.",
   },
   {
     label: "Frames transfer to main DB",
-    description: "Each committed WAL frame is written back to its corresponding page slot in the main database file.",
+    description:
+      "Each committed WAL frame is written back to its corresponding page slot in the main database file.",
   },
   {
     label: "Checkpoint complete",
-    description: "WAL recycled. All changes are now durable in the main database. The WAL is empty and ready for new writes.",
+    description:
+      "WAL recycled. All changes are now durable in the main database. The WAL is empty and ready for new writes.",
   },
 ];
 
@@ -73,15 +76,18 @@ const RECOVERY_STEPS: Step[] = [
   },
   {
     label: "CRASH!",
-    description: "Power failure mid-write. The process terminates unexpectedly with uncommitted data in the WAL.",
+    description:
+      "Power failure mid-write. The process terminates unexpectedly with uncommitted data in the WAL.",
   },
   {
     label: "WAL scan",
-    description: "On restart, the WAL is scanned. Committed frames (green) have valid checksums. Uncommitted frames (red) are incomplete.",
+    description:
+      "On restart, the WAL is scanned. Committed frames (green) have valid checksums. Uncommitted frames (red) are incomplete.",
   },
   {
     label: "Database consistent",
-    description: "Committed frames are replayed into the main database. Uncommitted frames are discarded. The database is consistent. No data loss.",
+    description:
+      "Committed frames are replayed into the main database. Uncommitted frames are discarded. The database is consistent. No data loss.",
   },
 ];
 
@@ -263,7 +269,11 @@ function NormalMode() {
             TPS: <span className="text-teal-400 font-bold">{tps}</span>
           </span>
           <span className="text-slate-500">
-            WAL: <span className="text-teal-400 font-bold">{frames.filter((f) => !f.flushed).length}</span> frames
+            WAL:{" "}
+            <span className="text-teal-400 font-bold">
+              {frames.filter((f) => !f.flushed).length}
+            </span>{" "}
+            frames
           </span>
         </div>
       </div>
@@ -281,9 +291,7 @@ function NormalMode() {
           <div className="grid grid-cols-2 gap-1.5">
             {Array.from({ length: DB_PAGES }, (_, i) => {
               // Find most recent frame for this page
-              const latestFrame = [...frames]
-                .reverse()
-                .find((f) => f.pageNum === i && !f.flushed);
+              const latestFrame = [...frames].reverse().find((f) => f.pageNum === i && !f.flushed);
               const writer = latestFrame
                 ? WRITERS.find((w) => w.id === latestFrame.writerId)
                 : undefined;
@@ -308,7 +316,10 @@ function NormalMode() {
             </span>
             <div className="ml-auto flex items-center gap-3">
               {WRITERS.map((w) => (
-                <span key={w.id} className="flex items-center gap-1.5 text-[9px] font-mono text-slate-500">
+                <span
+                  key={w.id}
+                  className="flex items-center gap-1.5 text-[9px] font-mono text-slate-500"
+                >
                   <span className="h-2 w-2 rounded-full" style={{ backgroundColor: w.color }} />
                   {w.name}
                 </span>
@@ -429,11 +440,7 @@ function CheckpointMode() {
         </div>
       </div>
 
-      <Stepper
-        steps={CHECKPOINT_STEPS}
-        currentStep={step}
-        onStepChange={onStepChange}
-      />
+      <Stepper steps={CHECKPOINT_STEPS} currentStep={step} onStepChange={onStepChange} />
     </div>
   );
 }
@@ -464,9 +471,7 @@ function RecoveryMode() {
   const showScan = step >= 2;
   const showRecovered = step >= 3;
 
-  const visibleFrames = showRecovered
-    ? frames.filter((f) => f.committed)
-    : frames;
+  const visibleFrames = showRecovered ? frames.filter((f) => f.committed) : frames;
 
   return (
     <div className="space-y-4">
@@ -480,9 +485,7 @@ function RecoveryMode() {
             className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 flex items-center gap-3"
           >
             <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0" />
-            <span className="text-xs font-bold text-red-300">
-              CRASH — power failure mid-write
-            </span>
+            <span className="text-xs font-bold text-red-300">CRASH — power failure mid-write</span>
           </motion.div>
         )}
         {showRecovered && (
@@ -530,11 +533,7 @@ function RecoveryMode() {
         </div>
       </div>
 
-      <Stepper
-        steps={RECOVERY_STEPS}
-        currentStep={step}
-        onStepChange={onStepChange}
-      />
+      <Stepper steps={RECOVERY_STEPS} currentStep={step} onStepChange={onStepChange} />
     </div>
   );
 }
@@ -595,21 +594,51 @@ export default function WalLanes() {
       <VizExposition
         whatItIs={
           <>
-            <div>You are looking at the <FrankenJargon term="wal">Write-Ahead Log (WAL)</FrankenJargon>. When transactions commit, they don&apos;t write directly to the main database file (which would be slow and block readers). Instead, they append their changes sequentially to the WAL.</div>
-            <p>Use the tabs to switch between Normal operations, Checkpointing, and Crash Recovery.</p>
+            <div>
+              You are looking at the <FrankenJargon term="wal">Write-Ahead Log (WAL)</FrankenJargon>
+              . When transactions commit, they don&apos;t write directly to the main database file
+              (which would be slow and block readers). Instead, they append their changes
+              sequentially to the WAL.
+            </div>
+            <p>
+              Use the tabs to switch between Normal operations, Checkpointing, and Crash Recovery.
+            </p>
           </>
         }
         howToUse={
           <>
-            <p>In <strong>Normal</strong> mode, click Play to watch multiple writers append to the log simultaneously. Notice how each writer gets its own color-coded &ldquo;lane.&rdquo; No blocking!</p>
-            <p>In <strong>Checkpoint</strong> mode, use the stepper to see how a background thread safely copies older frames from the <FrankenJargon term="wal">WAL</FrankenJargon> back into the main database file without interrupting active queries.</p>
-            <p>In <strong>Crash Recovery</strong> mode, step through to see what happens when the power dies. The engine simply scans the WAL, verifies the checksums, and discards any frames that weren&apos;t fully committed.</p>
+            <p>
+              In <strong>Normal</strong> mode, click Play to watch multiple writers append to the
+              log simultaneously. Notice how each writer gets its own color-coded
+              &ldquo;lane.&rdquo; No blocking!
+            </p>
+            <p>
+              In <strong>Checkpoint</strong> mode, use the stepper to see how a background thread
+              safely copies older frames from the <FrankenJargon term="wal">WAL</FrankenJargon> back
+              into the main database file without interrupting active queries.
+            </p>
+            <p>
+              In <strong>Crash Recovery</strong> mode, step through to see what happens when the
+              power dies. The engine simply scans the WAL, verifies the checksums, and discards any
+              frames that weren&apos;t fully committed.
+            </p>
           </>
         }
         whyItMatters={
           <>
-            <p>In standard SQLite, the <FrankenJargon term="wal">WAL</FrankenJargon> serializes all writes through a single thread, limiting throughput to one writer at a time. FrankenSQLite&apos;s <FrankenJargon term="mvcc">MVCC</FrankenJargon> architecture allows multiple writers to stream into the WAL concurrently.</p>
-            <p>By strictly enforcing an append-only design, this approach achieves two properties: sequential disk I/O that saturates modern NVMe bandwidth, and crash-safe durability where a sudden power loss never corrupts the main database file. The <FrankenJargon term="wal-index">WAL index</FrankenJargon> in shared memory enables checkpoint operations to run in the background without blocking readers.</p>
+            <p>
+              In standard SQLite, the <FrankenJargon term="wal">WAL</FrankenJargon> serializes all
+              writes through a single thread, limiting throughput to one writer at a time.
+              FrankenSQLite&apos;s <FrankenJargon term="mvcc">MVCC</FrankenJargon> architecture
+              allows multiple writers to stream into the WAL concurrently.
+            </p>
+            <p>
+              By strictly enforcing an append-only design, this approach achieves two properties:
+              sequential disk I/O that saturates modern NVMe bandwidth, and crash-safe durability
+              where a sudden power loss never corrupts the main database file. The{" "}
+              <FrankenJargon term="wal-index">WAL index</FrankenJargon> in shared memory enables
+              checkpoint operations to run in the background without blocking readers.
+            </p>
           </>
         }
       />

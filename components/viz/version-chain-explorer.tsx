@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { useMemo, useState } from "react";
+import { FrankenJargon } from "@/components/franken-jargon";
+import Stepper, { type Step } from "./stepper";
 import VizContainer from "./viz-container";
 import { VizExposition } from "./viz-exposition";
-import Stepper, { type Step } from "./stepper";
-import { FrankenJargon } from "@/components/franken-jargon";
 
 /* ------------------------------------------------------------------ */
 /*  Data & Types                                                       */
@@ -55,8 +55,7 @@ const steps: Step[] = [
   },
   {
     label: "Transaction A reads Page 5",
-    description:
-      "STILL sees old version! commit_seq(100) > snapshot.high(99) = INVISIBLE",
+    description: "STILL sees old version! commit_seq(100) > snapshot.high(99) = INVISIBLE",
   },
   {
     label: "Transaction C starts (TxnId=102)",
@@ -168,16 +167,11 @@ function TransactionCard({
       exit={prefersReducedMotion ? { opacity: 0 } : { opacity: 0, x: -20 }}
       transition={{ duration: prefersReducedMotion ? 0 : 0.3 }}
       className={`rounded-lg border p-3 transition-colors min-w-[140px] ${
-        isActive
-          ? "border-white/20 bg-white/5"
-          : "border-white/5 bg-white/[0.02]"
+        isActive ? "border-white/20 bg-white/5" : "border-white/5 bg-white/[0.02]"
       }`}
     >
       <div className="flex items-center gap-2 mb-1">
-        <div
-          className="h-2.5 w-2.5 rounded-full"
-          style={{ backgroundColor: txn.color }}
-        />
+        <div className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: txn.color }} />
         <span className="text-xs font-bold text-white">{txn.label}</span>
         <span
           className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
@@ -235,11 +229,9 @@ function VersionBadge({
   isNewest: boolean;
 }) {
   // Determine visibility from Txn A's perspective at step 5
-  const isInvisibleToA =
-    step === 5 && pageId === 5 && entry.version === 2;
+  const isInvisibleToA = step === 5 && pageId === 5 && entry.version === 2;
   // Determine visibility from Txn C's perspective at step 6
-  const isVisibleToC =
-    step === 6 && pageId === 5 && entry.version === 2;
+  const isVisibleToC = step === 6 && pageId === 5 && entry.version === 2;
 
   return (
     <motion.div
@@ -257,11 +249,7 @@ function VersionBadge({
     >
       <span className="text-slate-500">v{entry.version}</span>
       <span className="text-slate-400">txn={entry.txnId}</span>
-      <span
-        className={`${
-          entry.commitSeq === null ? "text-amber-400" : "text-slate-400"
-        }`}
-      >
+      <span className={`${entry.commitSeq === null ? "text-amber-400" : "text-slate-400"}`}>
         {entry.commitSeq === null ? "uncommitted" : `cs=${entry.commitSeq}`}
       </span>
 
@@ -305,19 +293,13 @@ function BTreePage({
       <motion.div
         layout
         animate={{
-          borderColor: highlight
-            ? "rgba(20, 184, 166, 0.5)"
-            : "rgba(255,255,255,0.08)",
-          boxShadow: highlight
-            ? "0 0 20px rgba(20, 184, 166, 0.15)"
-            : "0 0 0px rgba(0,0,0,0)",
+          borderColor: highlight ? "rgba(20, 184, 166, 0.5)" : "rgba(255,255,255,0.08)",
+          boxShadow: highlight ? "0 0 20px rgba(20, 184, 166, 0.15)" : "0 0 0px rgba(0,0,0,0)",
         }}
         transition={{ duration: 0.3 }}
         className="rounded-lg border bg-slate-900/60 px-2 md:px-3 py-2 text-center"
       >
-        <div className="text-[10px] text-slate-500 font-mono">
-          Page {page.id}
-        </div>
+        <div className="text-[10px] text-slate-500 font-mono">Page {page.id}</div>
       </motion.div>
 
       {/* Version chain */}
@@ -370,8 +352,8 @@ function VisibilityCallout({ step }: { step: number }) {
         <span className="text-red-400 font-black">INVISIBLE</span>
       </div>
       <div className="mt-2 text-[11px] text-slate-400">
-        Transaction A started before B committed, so A cannot see B&apos;s
-        changes. This is snapshot isolation in action.
+        Transaction A started before B committed, so A cannot see B&apos;s changes. This is snapshot
+        isolation in action.
       </div>
     </motion.div>
   );
@@ -388,9 +370,7 @@ function VisibilityCalloutC({ step }: { step: number }) {
       transition={{ duration: 0.4, delay: 0.2 }}
       className="mt-4 rounded-xl border border-green-500/30 bg-green-500/[0.07] p-4 text-center"
     >
-      <div className="text-xs font-bold text-green-400 uppercase tracking-wider mb-2">
-        Visible!
-      </div>
+      <div className="text-xs font-bold text-green-400 uppercase tracking-wider mb-2">Visible!</div>
       <div className="font-mono text-sm text-white leading-relaxed">
         <span className="text-amber-400">commit_seq</span>
         <span className="text-slate-500">(</span>
@@ -418,8 +398,10 @@ function VisibilityCalloutC({ step }: { step: number }) {
 export default function VersionChainExplorer() {
   const [currentStep, setCurrentStep] = useState(0);
 
-  const { pages, transactions, highlightPageId, perspectiveTxnId } =
-    useMemo(() => buildState(currentStep), [currentStep]);
+  const { pages, transactions, highlightPageId, perspectiveTxnId } = useMemo(
+    () => buildState(currentStep),
+    [currentStep],
+  );
 
   // Determine which txn is "active" in the sidebar for highlight
   const activeTxnId = perspectiveTxnId ?? transactions.at(-1)?.id ?? null;
@@ -427,7 +409,13 @@ export default function VersionChainExplorer() {
   return (
     <VizContainer
       title="Page Version Chain Explorer"
-      description={<>Walk through how <FrankenJargon term="mvcc">MVCC</FrankenJargon> <FrankenJargon term="snapshot-isolation">snapshot isolation</FrankenJargon> works at the page level. Each step shows how transactions, B-tree pages, and version chains interact.</>}
+      description={
+        <>
+          Walk through how <FrankenJargon term="mvcc">MVCC</FrankenJargon>{" "}
+          <FrankenJargon term="snapshot-isolation">snapshot isolation</FrankenJargon> works at the
+          page level. Each step shows how transactions, B-tree pages, and version chains interact.
+        </>
+      }
       minHeight={480}
     >
       <div className="p-3 md:p-6">
@@ -450,9 +438,7 @@ export default function VersionChainExplorer() {
                 ))}
               </AnimatePresence>
               {transactions.length === 0 && (
-                <div className="text-[10px] text-slate-600 italic py-4">
-                  No active transactions
-                </div>
+                <div className="text-[10px] text-slate-600 italic py-4">No active transactions</div>
               )}
             </div>
           </div>
@@ -465,12 +451,8 @@ export default function VersionChainExplorer() {
                 layout
                 className="rounded-lg border border-white/10 bg-slate-900/80 px-4 py-2 text-center"
               >
-                <div className="text-[10px] text-slate-500 font-mono">
-                  Root (Page 1)
-                </div>
-                <div className="text-[9px] text-slate-600 font-mono mt-0.5">
-                  ptrs: [3, 5, 7, 9]
-                </div>
+                <div className="text-[10px] text-slate-500 font-mono">Root (Page 1)</div>
+                <div className="text-[9px] text-slate-600 font-mono mt-0.5">ptrs: [3, 5, 7, 9]</div>
               </motion.div>
             </div>
 
@@ -521,19 +503,49 @@ export default function VersionChainExplorer() {
       <VizExposition
         whatItIs={
           <>
-            <p>You are looking at FrankenSQLite&apos;s <FrankenJargon term="mvcc">MVCC</FrankenJargon> version chain in action. The left sidebar shows active transactions with their <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> boundaries. The center shows <FrankenJargon term="btree">B-tree</FrankenJargon> leaf pages with stacked version badges, each representing a committed page state.</p>
-            <p>The key concept is visibility: each transaction sees only the page versions that were committed before its <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> started. Versions committed after that point are invisible, even if they exist on disk.</p>
+            <p>
+              You are looking at FrankenSQLite&apos;s{" "}
+              <FrankenJargon term="mvcc">MVCC</FrankenJargon> version chain in action. The left
+              sidebar shows active transactions with their{" "}
+              <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> boundaries. The
+              center shows <FrankenJargon term="btree">B-tree</FrankenJargon> leaf pages with
+              stacked version badges, each representing a committed page state.
+            </p>
+            <p>
+              The key concept is visibility: each transaction sees only the page versions that were
+              committed before its <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>{" "}
+              started. Versions committed after that point are invisible, even if they exist on
+              disk.
+            </p>
           </>
         }
         howToUse={
           <>
-            <p>Step through the 7 stages using the controls. Watch Transaction A start and capture a snapshot, then Transaction B start with a later snapshot. When B writes to a page and commits, step forward to see A read the same page; it still sees the old version because B&apos;s commit happened after A&apos;s snapshot.</p>
-            <p>Pay attention to the visibility callouts that show the commit sequence number comparison. This single comparison is the entire <FrankenJargon term="mvcc">MVCC</FrankenJargon> visibility rule.</p>
+            <p>
+              Step through the 7 stages using the controls. Watch Transaction A start and capture a
+              snapshot, then Transaction B start with a later snapshot. When B writes to a page and
+              commits, step forward to see A read the same page; it still sees the old version
+              because B&apos;s commit happened after A&apos;s snapshot.
+            </p>
+            <p>
+              Pay attention to the visibility callouts that show the commit sequence number
+              comparison. This single comparison is the entire{" "}
+              <FrankenJargon term="mvcc">MVCC</FrankenJargon> visibility rule.
+            </p>
           </>
         }
         whyItMatters={
           <>
-            <p>This mechanism is what allows multiple concurrent readers and writers to coexist without locks. Long-running analytical queries see a stable, consistent view of the database while OLTP transactions continue writing in parallel. Unlike C SQLite, where a writer blocks all readers (or vice versa in WAL mode for writes), FrankenSQLite&apos;s <FrankenJargon term="mvcc">MVCC</FrankenJargon> gives every transaction its own isolated view of the world. <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> exploit the same mechanism to read historical snapshots on demand.</p>
+            <p>
+              This mechanism is what allows multiple concurrent readers and writers to coexist
+              without locks. Long-running analytical queries see a stable, consistent view of the
+              database while OLTP transactions continue writing in parallel. Unlike C SQLite, where
+              a writer blocks all readers (or vice versa in WAL mode for writes),
+              FrankenSQLite&apos;s <FrankenJargon term="mvcc">MVCC</FrankenJargon> gives every
+              transaction its own isolated view of the world.{" "}
+              <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> exploit the same
+              mechanism to read historical snapshots on demand.
+            </p>
           </>
         }
       />

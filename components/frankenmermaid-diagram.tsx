@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
+import { useMemo, useState } from "react";
 import { FrankenContainer } from "@/components/franken-elements";
 import { architectureLayers } from "@/lib/content";
 
@@ -227,20 +227,12 @@ export default function FrankenMermaidDiagram() {
           {particles.map((p, pi) => (
             <g key={`p${pi}`}>
               <circle r={5} fill="#2dd4bf" opacity={0.12} filter="url(#dotGlow)">
-                <animateMotion
-                  dur={p.dur}
-                  begin={p.delay}
-                  repeatCount="indefinite"
-                >
+                <animateMotion dur={p.dur} begin={p.delay} repeatCount="indefinite">
                   <mpath href={`#${p.pathId}`} />
                 </animateMotion>
               </circle>
               <circle r={2} fill="#5eead4" opacity={0.7}>
-                <animateMotion
-                  dur={p.dur}
-                  begin={p.delay}
-                  repeatCount="indefinite"
-                >
+                <animateMotion dur={p.dur} begin={p.delay} repeatCount="indefinite">
                   <mpath href={`#${p.pathId}`} />
                 </animateMotion>
               </circle>

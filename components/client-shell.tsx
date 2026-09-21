@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import SiteHeader from "@/components/site-header";
-import SiteFooter from "@/components/site-footer";
+import { useEffect } from "react";
 import ErrorBoundary from "@/components/error-boundary";
 import ScrollToTop from "@/components/scroll-to-top";
+import SiteFooter from "@/components/site-footer";
+import SiteHeader from "@/components/site-header";
 import { SiteProvider } from "@/lib/site-state";
 
 const CustomCursor = dynamic(() => import("@/components/custom-cursor"), {
@@ -29,9 +29,7 @@ export default function ClientShell({ children }: { children: React.ReactNode })
   if (isFullViewport) {
     return (
       <ErrorBoundary>
-        <SiteProvider>
-          {children}
-        </SiteProvider>
+        <SiteProvider>{children}</SiteProvider>
       </ErrorBoundary>
     );
   }
@@ -54,16 +52,20 @@ export default function ClientShell({ children }: { children: React.ReactNode })
                 transition: {
                   duration: prefersReducedMotion ? 0 : 0.4,
                   ease: "easeOut",
-                  delay: prefersReducedMotion ? 0 : 0.1
-                }
+                  delay: prefersReducedMotion ? 0 : 0.1,
+                },
               }}
-              exit={prefersReducedMotion ? { opacity: 1 } : {
-                opacity: 0,
-                transition: {
-                  duration: 0.3,
-                  ease: "easeIn"
-                }
-              }}
+              exit={
+                prefersReducedMotion
+                  ? { opacity: 1 }
+                  : {
+                      opacity: 0,
+                      transition: {
+                        duration: 0.3,
+                        ease: "easeIn",
+                      },
+                    }
+              }
               className="flex-1 relative"
             >
               {children}

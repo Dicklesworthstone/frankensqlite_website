@@ -1,8 +1,8 @@
 "use client";
 
-import { type ReactNode, useState, useRef, useEffect } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Info } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { getJargon } from "@/lib/franken-jargon";
 
 interface FrankenJargonProps {
@@ -15,7 +15,7 @@ export function FrankenJargon({ term, children, className = "" }: FrankenJargonP
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  
+
   useEffect(() => {
     return () => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -46,7 +46,7 @@ export function FrankenJargon({ term, children, className = "" }: FrankenJargonP
   };
 
   return (
-    <div 
+    <div
       className="relative inline-block"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -71,44 +71,39 @@ export function FrankenJargon({ term, children, className = "" }: FrankenJargonP
             className="absolute z-[100] w-[320px] sm:w-[360px] bottom-full left-1/2 -translate-x-1/2 mb-3 cursor-default"
           >
             <div className="rounded-xl border border-teal-500/20 bg-slate-900/95 p-5 shadow-2xl backdrop-blur-xl relative before:absolute before:inset-x-0 before:top-0 before:h-1 before:rounded-t-xl before:bg-gradient-to-r before:from-teal-500/80 before:to-emerald-400/80">
-              
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-teal-500/20 text-teal-400">
                     <Info className="h-4 w-4" />
                   </div>
-                  <span className="font-bold text-white text-base leading-tight">{jargonData.term}</span>
+                  <span className="font-bold text-white text-base leading-tight">
+                    {jargonData.term}
+                  </span>
                 </div>
-                
+
                 <p className="text-sm leading-relaxed text-slate-300 font-medium">
                   {jargonData.short}
                 </p>
-                
+
                 <div className="h-px w-full bg-white/10 my-2" />
-                
-                <p className="text-xs leading-relaxed text-slate-400">
-                  {jargonData.long}
-                </p>
+
+                <p className="text-xs leading-relaxed text-slate-400">{jargonData.long}</p>
 
                 {jargonData.analogy && (
                   <div className="mt-3 rounded-lg border border-purple-500/20 bg-purple-500/5 p-3">
                     <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-purple-400">
                       Think of it like...
                     </p>
-                    <p className="text-xs leading-relaxed text-slate-300">
-                      {jargonData.analogy}
-                    </p>
+                    <p className="text-xs leading-relaxed text-slate-300">{jargonData.analogy}</p>
                   </div>
                 )}
-                
+
                 {jargonData.why && (
                   <div className="mt-3 rounded-lg border border-teal-500/20 bg-teal-500/5 p-3">
                     <p className="mb-1 text-[10px] font-black uppercase tracking-wider text-teal-400">
                       Why it matters
                     </p>
-                    <p className="text-xs leading-relaxed text-slate-300">
-                      {jargonData.why}
-                    </p>
+                    <p className="text-xs leading-relaxed text-slate-300">{jargonData.why}</p>
                   </div>
                 )}
 

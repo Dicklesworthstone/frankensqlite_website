@@ -1,12 +1,13 @@
-import type { Metadata } from "next";
 import { Eye } from "lucide-react";
-import ScreenshotGallery from "@/components/screenshot-gallery";
+import type { Metadata } from "next";
 import FrankenGlitch from "@/components/franken-glitch";
+import ScreenshotGallery from "@/components/screenshot-gallery";
 import { screenshots } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "Showcase",
-  description: "Visual showcase of FrankenSQLite's architecture diagram, illustration, and system design.",
+  description:
+    "Visual showcase of FrankenSQLite's architecture diagram, illustration, and system design.",
 };
 
 export default function ShowcasePage() {
@@ -28,8 +29,8 @@ export default function ShowcasePage() {
             </h1>
           </FrankenGlitch>
           <p className="text-lg md:text-xl text-slate-400 font-medium leading-relaxed max-w-2xl">
-            Architecture diagrams and illustrations of the FrankenSQLite system.
-            Every image documents a real aspect of the 26-crate workspace design.
+            Architecture diagrams and illustrations of the FrankenSQLite system. Every image
+            documents a real aspect of the 26-crate workspace design.
           </p>
         </div>
       </section>

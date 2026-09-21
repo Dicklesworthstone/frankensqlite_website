@@ -1,7 +1,7 @@
 "use client";
 
-import React, { type ReactNode, useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import React, { type ReactNode, useEffect, useState } from "react";
 import { FrankenContainer } from "@/components/franken-elements";
 
 interface VizContainerProps {
@@ -49,9 +49,7 @@ export default function VizContainer({
       <div className="p-4 md:p-8">
         {/* Header */}
         <div className="mb-6">
-          <h3 className="text-lg md:text-2xl font-black text-white tracking-tight">
-            {title}
-          </h3>
+          <h3 className="text-lg md:text-2xl font-black text-white tracking-tight">{title}</h3>
           {description && (
             <div className="mt-2 text-sm text-slate-400 leading-relaxed max-w-2xl">
               {description}
@@ -73,9 +71,7 @@ export default function VizContainer({
               />
             </div>
           ) : (
-            <div data-reduced-motion={prefersReducedMotion || undefined}>
-              {children}
-            </div>
+            <div data-reduced-motion={prefersReducedMotion || undefined}>{children}</div>
           )}
         </div>
       </div>

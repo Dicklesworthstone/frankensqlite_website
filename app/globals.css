@@ -55,13 +55,17 @@ body {
   overflow-x: hidden;
 }
 
-h1, h2, h3, h4 {
+h1,
+h2,
+h3,
+h4 {
   letter-spacing: var(--tracking-tighter);
   font-weight: 900;
   line-height: 1.1;
 }
 
-code, pre {
+code,
+pre {
   font-family: var(--font-mono);
   letter-spacing: var(--tracking-normal);
 }
@@ -142,13 +146,7 @@ body::before {
 
 /* Living Gradient Text */
 .text-animate-green {
-  background: linear-gradient(
-    to right,
-    #2dd4bf,
-    #5eead4,
-    #14b8a6,
-    #2dd4bf
-  );
+  background: linear-gradient(to right, #2dd4bf, #5eead4, #14b8a6, #2dd4bf);
   background-size: 300% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -157,14 +155,22 @@ body::before {
 }
 
 @keyframes textGradient {
-  to { background-position: 300% center; }
+  to {
+    background-position: 300% center;
+  }
 }
 
 /* Smooth float animation */
 @keyframes float {
-  0% { transform: translateY(0px) rotate(0deg); }
-  50% { transform: translateY(-10px) rotate(1.5deg); }
-  100% { transform: translateY(0px) rotate(0deg); }
+  0% {
+    transform: translateY(0px) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1.5deg);
+  }
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
 }
 
 .animate-float {
@@ -173,8 +179,14 @@ body::before {
 
 /* Border beam sweep (CSS-only, compositor-friendly) */
 @keyframes borderBeam {
-  0% { top: -100%; left: -100%; }
-  100% { top: 100%; left: 100%; }
+  0% {
+    top: -100%;
+    left: -100%;
+  }
+  100% {
+    top: 100%;
+    left: 100%;
+  }
 }
 
 .animate-border-beam {
@@ -218,8 +230,12 @@ body::before {
 
 /* Slow spin for flywheel idle state */
 @keyframes spinSlow {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .animate-spin-slow {
@@ -364,4 +380,3 @@ pre code.hljs {
 .hljs-strong {
   font-weight: bold;
 }
-

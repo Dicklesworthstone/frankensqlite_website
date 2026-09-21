@@ -10,28 +10,46 @@ export default function Timeline({ items }: { items: ChangelogEntry[] }) {
       <div className="absolute left-0 md:left-8 top-0 bottom-0 w-px bg-gradient-to-b from-teal-500/50 via-teal-500/10 to-transparent" />
       <div className="space-y-12 md:space-y-24">
         {items.map((item, index) => (
-          <motion.div key={item.period} initial={{ opacity: 0, x: -20 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true, margin: "-20px" }} transition={{ duration: 0.8, ease: [0.19, 1, 0.22, 1], delay: (index % 4) * 0.1 }} className="relative pl-8 md:pl-24 group">
+          <motion.div
+            key={item.period}
+            initial={{ opacity: 0, x: -20 }}
+            whileInView={{ opacity: 1, x: 0 }}
+            viewport={{ once: true, margin: "-20px" }}
+            transition={{ duration: 0.8, ease: [0.19, 1, 0.22, 1], delay: (index % 4) * 0.1 }}
+            className="relative pl-8 md:pl-24 group"
+          >
             <div className="absolute left-[-4.5px] md:left-[27.5px] top-2 flex h-2.5 w-2.5 items-center justify-center">
               <div className="absolute h-5 w-5 rounded-full bg-teal-500/20 group-hover:animate-ping" />
               <div className="relative h-2.5 w-2.5 rounded-full bg-teal-500 border border-black shadow-[0_0_15px_#14b8a6]" />
             </div>
             <div className="grid lg:grid-cols-12 gap-8 items-start">
               <div className="lg:col-span-3 pt-1">
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-500/60 group-hover:text-teal-400 transition-colors">{item.period}</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-500/60 group-hover:text-teal-400 transition-colors">
+                  {item.period}
+                </span>
               </div>
               <div className="lg:col-span-9">
-                <FrankenContainer withStitches={false} className="glass-modern p-8 md:p-12 transition-all duration-500 group-hover:bg-white/[0.03] group-hover:border-teal-500/20 group-hover:shadow-[0_0_40px_rgba(20,184,166,0.1)]">
-                  <h3 className="text-2xl md:text-3xl font-black text-white mb-8 group-hover:text-teal-400 transition-colors tracking-tight">{item.title}</h3>
+                <FrankenContainer
+                  withStitches={false}
+                  className="glass-modern p-8 md:p-12 transition-all duration-500 group-hover:bg-white/[0.03] group-hover:border-teal-500/20 group-hover:shadow-[0_0_40px_rgba(20,184,166,0.1)]"
+                >
+                  <h3 className="text-2xl md:text-3xl font-black text-white mb-8 group-hover:text-teal-400 transition-colors tracking-tight">
+                    {item.title}
+                  </h3>
                   <ul className="space-y-5">
                     {item.items.map((text, i) => (
                       <li key={i} className="flex items-start gap-4 group/item">
                         <div className="mt-2.5 h-1 w-1 shrink-0 rounded-full bg-slate-700 group-hover/item:bg-teal-500 transition-colors shadow-[0_0_5px_rgba(20,184,166,0)] group-hover/item:shadow-[0_0_8px_#14b8a6]" />
-                        <p className="text-base md:text-lg font-medium leading-relaxed text-slate-400 group-hover/item:text-slate-200 transition-colors">{text}</p>
+                        <p className="text-base md:text-lg font-medium leading-relaxed text-slate-400 group-hover/item:text-slate-200 transition-colors">
+                          {text}
+                        </p>
                       </li>
                     ))}
                   </ul>
                   <div className="mt-10 pt-8 border-t border-white/5 flex items-center justify-between opacity-40 group-hover:opacity-100 transition-opacity">
-                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">System Log v0.1</span>
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
+                      System Log v0.1
+                    </span>
                     <div className="flex gap-1.5">
                       <div className="h-1 w-3 rounded-full bg-teal-500 animate-pulse" />
                       <div className="h-1 w-1 rounded-full bg-teal-500/50" />

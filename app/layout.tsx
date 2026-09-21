@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
-import { siteConfig } from "@/lib/site-config";
 import ClientShell from "@/components/client-shell";
+import { siteConfig } from "@/lib/site-config";
 import "./globals.css";
 
 const inter = Inter({
@@ -56,9 +56,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body
-        className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}
-      >
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <a href="#main-content" className="skip-link">
           Skip to main content
         </a>

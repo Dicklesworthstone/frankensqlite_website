@@ -1,6 +1,7 @@
 "use client";
 
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react";
+import type React from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { cn, isTextInputLike } from "./utils";
 
 interface SiteContextType {
@@ -34,7 +35,8 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
     if (!audioEnabledRef.current) return;
     try {
       if (!audioContextRef.current) {
-        const WebkitAudioContext = (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        const WebkitAudioContext = (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
         const AudioCtx = window.AudioContext || WebkitAudioContext;
         if (!AudioCtx) return;
         audioContextRef.current = new AudioCtx();
@@ -92,7 +94,7 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const toggleAnatomyMode = useCallback(() => {
-    setIsAnatomyMode(prev => !prev);
+    setIsAnatomyMode((prev) => !prev);
     playSfx("click");
   }, [playSfx]);
 
@@ -129,10 +131,15 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
         toggleAnatomyMode,
         isAudioEnabled,
         toggleAudio,
-        playSfx
+        playSfx,
       }}
     >
-      <div className={cn("min-h-screen transition-colors duration-700", isAnatomyMode ? "anatomy-mode" : "")}>
+      <div
+        className={cn(
+          "min-h-screen transition-colors duration-700",
+          isAnatomyMode ? "anatomy-mode" : "",
+        )}
+      >
         {children}
       </div>
 
@@ -184,7 +191,6 @@ export function SiteProvider({ children }: { children: React.ReactNode }) {
           animation: scanline 12s linear infinite;
         }
       `}</style>
-
     </SiteContext.Provider>
   );
 }

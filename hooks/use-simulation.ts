@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface UseSimulationOptions {
   /** Called on each animation frame with the elapsed delta in ms */

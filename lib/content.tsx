@@ -1,4 +1,4 @@
-import React, { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { FrankenJargon } from "@/components/franken-jargon";
 
 export { navItems, siteConfig } from "@/lib/site-config";
@@ -37,8 +37,8 @@ export const features: Feature[] = [
     title: "Concurrent Writers",
     description: (
       <>
-        <FrankenJargon term="mvcc" /> lets multiple writers operate simultaneously. 
-        It isolates transactions at the page level, completely eliminating the SQLITE_BUSY wall.
+        <FrankenJargon term="mvcc" /> lets multiple writers operate simultaneously. It isolates
+        transactions at the page level, completely eliminating the SQLITE_BUSY wall.
       </>
     ),
     icon: "cpu",
@@ -47,8 +47,9 @@ export const features: Feature[] = [
     title: "Self-Healing Storage",
     description: (
       <>
-        <FrankenJargon term="raptorq" /> fountain codes protect every page with <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>.
-        Bit rot and disk corruption trigger automatic recovery. No external backups needed.
+        <FrankenJargon term="raptorq" /> fountain codes protect every page with{" "}
+        <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>. Bit rot and disk
+        corruption trigger automatic recovery. No external backups needed.
       </>
     ),
     icon: "shield",
@@ -57,7 +58,8 @@ export const features: Feature[] = [
     title: "File Compatibility",
     description: (
       <>
-        Reads and writes standard .sqlite3 files directly. Drop-in migration from C SQLite. No data conversion, no schema changes.
+        Reads and writes standard .sqlite3 files directly. Drop-in migration from C SQLite. No data
+        conversion, no schema changes.
       </>
     ),
     icon: "blocks",
@@ -66,7 +68,8 @@ export const features: Feature[] = [
     title: "Zero Unsafe",
     description: (
       <>
-        Every line of the 26-crate workspace is pure safe Rust. With <FrankenJargon term="zero-unsafe" />, memory bugs are structurally impossible.
+        Every line of the 26-crate workspace is pure safe Rust. With{" "}
+        <FrankenJargon term="zero-unsafe" />, memory bugs are structurally impossible.
       </>
     ),
     icon: "lock",
@@ -75,7 +78,8 @@ export const features: Feature[] = [
     title: "Full SQL Support",
     description: (
       <>
-        Joins, subqueries, CTEs, window functions, triggers, and views. Hand-written recursive descent parser feeds a custom <FrankenJargon term="vdbe" /> bytecode interpreter.
+        Joins, subqueries, CTEs, window functions, triggers, and views. Hand-written recursive
+        descent parser feeds a custom <FrankenJargon term="vdbe" /> bytecode interpreter.
       </>
     ),
     icon: "terminal",
@@ -84,7 +88,8 @@ export const features: Feature[] = [
     title: "Extension Ecosystem",
     description: (
       <>
-        Custom functions, virtual tables, and collations. FTS5 full-text search, JSON1, R-tree spatial indexes, and session/changeset tracking ship out of the box.
+        Custom functions, virtual tables, and collations. FTS5 full-text search, JSON1, R-tree
+        spatial indexes, and session/changeset tracking ship out of the box.
       </>
     ),
     icon: "sparkles",
@@ -93,7 +98,9 @@ export const features: Feature[] = [
     title: "Time-Travel Queries",
     description: (
       <>
-        The <FrankenJargon term="mvcc" /> version chain holds full history. Query the database at any past point via <code className="text-teal-300 text-xs">FOR SYSTEM_TIME AS OF</code>. No snapshots, no replicas, no forks.
+        The <FrankenJargon term="mvcc" /> version chain holds full history. Query the database at
+        any past point via <code className="text-teal-300 text-xs">FOR SYSTEM_TIME AS OF</code>. No
+        snapshots, no replicas, no forks.
       </>
     ),
     icon: "activity",
@@ -102,7 +109,9 @@ export const features: Feature[] = [
     title: "Dual Storage Modes",
     description: (
       <>
-        Standard .sqlite3 compatibility, plus a native <FrankenJargon term="ecs" /> format with append-only commits, <FrankenJargon term="content-addressed" /> pages, and continuous <FrankenJargon term="raptorq" /> parity generation.
+        Standard .sqlite3 compatibility, plus a native <FrankenJargon term="ecs" /> format with
+        append-only commits, <FrankenJargon term="content-addressed" /> pages, and continuous{" "}
+        <FrankenJargon term="raptorq" /> parity generation.
       </>
     ),
     icon: "layers",
@@ -111,7 +120,9 @@ export const features: Feature[] = [
     title: "Page-Level Encryption",
     description: (
       <>
-        <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> encrypts each 4KB page independently. <FrankenJargon term="dek-kek">Envelope encryption</FrankenJargon> makes re-keying instant: change the passphrase without re-encrypting a single page.
+        <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> encrypts each 4KB page
+        independently. <FrankenJargon term="dek-kek">Envelope encryption</FrankenJargon> makes
+        re-keying instant: change the passphrase without re-encrypting a single page.
       </>
     ),
     icon: "keyRound",
@@ -120,7 +131,11 @@ export const features: Feature[] = [
     title: "Transaction Observability",
     description: (
       <>
-        Built-in PRAGMAs surface transaction lifecycle stats, anti-pattern detection, and <FrankenJargon term="timeline-profiling">Chrome DevTools-compatible timeline JSON</FrankenJargon>. No external APM required.
+        Built-in PRAGMAs surface transaction lifecycle stats, anti-pattern detection, and{" "}
+        <FrankenJargon term="timeline-profiling">
+          Chrome DevTools-compatible timeline JSON
+        </FrankenJargon>
+        . No external APM required.
       </>
     ),
     icon: "barChart",
@@ -129,7 +144,10 @@ export const features: Feature[] = [
     title: "Adaptive Indexing",
     description: (
       <>
-        <FrankenJargon term="learned-index">Learned indexes</FrankenJargon> replace B-tree traversal with model inference. <FrankenJargon term="database-cracking">Database cracking</FrankenJargon> builds indexes on the fly from your query patterns. Zero configuration.
+        <FrankenJargon term="learned-index">Learned indexes</FrankenJargon> replace B-tree traversal
+        with model inference.{" "}
+        <FrankenJargon term="database-cracking">Database cracking</FrankenJargon> builds indexes on
+        the fly from your query patterns. Zero configuration.
       </>
     ),
     icon: "globe",
@@ -138,7 +156,9 @@ export const features: Feature[] = [
     title: "Structured Concurrency",
     description: (
       <>
-        Every async operation runs within a <FrankenJargon term="structured-concurrency">capability context (Cx)</FrankenJargon> that carries cancellation, budgets, and tracing. No orphaned tasks. No leaked resources.
+        Every async operation runs within a{" "}
+        <FrankenJargon term="structured-concurrency">capability context (Cx)</FrankenJargon> that
+        carries cancellation, budgets, and tracing. No orphaned tasks. No leaked resources.
       </>
     ),
     icon: "workflow",
@@ -150,30 +170,71 @@ export const features: Feature[] = [
 export const crates: { name: string; description: ReactNode }[] = [
   { name: "fsqlite", description: "Public API facade" },
   { name: "fsqlite-ast", description: "SQL abstract syntax tree node types" },
-  { name: "fsqlite-btree", description: <>B-tree storage engine handling the fundamental <FrankenJargon term="wal">WAL</FrankenJargon> layout</> },
+  {
+    name: "fsqlite-btree",
+    description: (
+      <>
+        B-tree storage engine handling the fundamental <FrankenJargon term="wal">WAL</FrankenJargon>{" "}
+        layout
+      </>
+    ),
+  },
   { name: "fsqlite-c-api", description: "SQLite C API compatibility shim for drop-in replacement" },
   { name: "fsqlite-cli", description: "Interactive SQL shell" },
-  { name: "fsqlite-core", description: "Core engine: connection, prepare, schema, DDL/DML codegen" },
+  {
+    name: "fsqlite-core",
+    description: "Core engine: connection, prepare, schema, DDL/DML codegen",
+  },
   { name: "fsqlite-e2e", description: "End-to-end differential testing and benchmark harness" },
   { name: "fsqlite-error", description: "Structured error types" },
   { name: "fsqlite-ext-fts3", description: "FTS3/FTS4 full-text search extension" },
   { name: "fsqlite-ext-fts5", description: "FTS5 full-text search extension" },
   { name: "fsqlite-ext-icu", description: "ICU collation extension" },
   { name: "fsqlite-ext-json", description: "JSON1 functions and virtual tables" },
-  { name: "fsqlite-ext-misc", description: "Miscellaneous extensions: generate_series, carray, dbstat, dbpage" },
+  {
+    name: "fsqlite-ext-misc",
+    description: "Miscellaneous extensions: generate_series, carray, dbstat, dbpage",
+  },
   { name: "fsqlite-ext-rtree", description: "R-tree and geopoly spatial index extension" },
   { name: "fsqlite-ext-session", description: "Session, changeset, and patchset extension" },
   { name: "fsqlite-func", description: "Built-in scalar, aggregate, and window functions" },
   { name: "fsqlite-harness", description: "Conformance test runner and golden file comparison" },
-  { name: "fsqlite-mvcc", description: <><FrankenJargon term="mvcc" /> page-level versioning for concurrent writers</> },
-  { name: "fsqlite-observability", description: "Conflict analytics and observability infrastructure" },
+  {
+    name: "fsqlite-mvcc",
+    description: (
+      <>
+        <FrankenJargon term="mvcc" /> page-level versioning for concurrent writers
+      </>
+    ),
+  },
+  {
+    name: "fsqlite-observability",
+    description: "Conflict analytics and observability infrastructure",
+  },
   { name: "fsqlite-pager", description: "Page cache and journal management" },
   { name: "fsqlite-parser", description: "Hand-written recursive descent SQL parser" },
-  { name: "fsqlite-planner", description: "Query planner: name resolution, WHERE analysis, join ordering" },
+  {
+    name: "fsqlite-planner",
+    description: "Query planner: name resolution, WHERE analysis, join ordering",
+  },
   { name: "fsqlite-types", description: "Core type definitions" },
-  { name: "fsqlite-vdbe", description: <><FrankenJargon term="vdbe" /> bytecode interpreter</> },
+  {
+    name: "fsqlite-vdbe",
+    description: (
+      <>
+        <FrankenJargon term="vdbe" /> bytecode interpreter
+      </>
+    ),
+  },
   { name: "fsqlite-vfs", description: "Virtual filesystem abstraction layer" },
-  { name: "fsqlite-wal", description: <><FrankenJargon term="wal" /> with snapshot journaling</> },
+  {
+    name: "fsqlite-wal",
+    description: (
+      <>
+        <FrankenJargon term="wal" /> with snapshot journaling
+      </>
+    ),
+  },
 ];
 
 // ---- 6. Comparison table --------------------------------------------------
@@ -440,14 +501,18 @@ export const changelog: ChangelogEntry[] = [
       "Wrote tokenizer and recursive-descent SQL parser",
       "Designed full AST representation for SELECT, INSERT, UPDATE, DELETE",
       "Implemented query planner with cost-based optimization",
-      <span key="1">Built <FrankenJargon term="vdbe" /> bytecode compiler and interpreter loop</span>,
+      <span key="1">
+        Built <FrankenJargon term="vdbe" /> bytecode compiler and interpreter loop
+      </span>,
     ],
   },
   {
     period: "Phase 3",
     title: "Storage",
     items: [
-      <span key="1">Implemented <FrankenJargon term="wal" /> with checkpointing</span>,
+      <span key="1">
+        Implemented <FrankenJargon term="wal" /> with checkpointing
+      </span>,
       "Built page cache with configurable buffer pool sizing",
       "Added crash recovery and rollback journal support",
       "Integrated file locking and concurrency primitives",
@@ -457,9 +522,13 @@ export const changelog: ChangelogEntry[] = [
     period: "Phase 4",
     title: "MVCC + RaptorQ",
     items: [
-      <span key="1">Implemented <FrankenJargon term="mvcc" /> with snapshot isolation</span>,
+      <span key="1">
+        Implemented <FrankenJargon term="mvcc" /> with snapshot isolation
+      </span>,
       "Enabled concurrent writers \u2014 up to 8x throughput improvement",
-      <span key="3">Integrated <FrankenJargon term="raptorq" /> fountain codes for page-level error correction</span>,
+      <span key="3">
+        Integrated <FrankenJargon term="raptorq" /> fountain codes for page-level error correction
+      </span>,
       "Added automatic self-healing for bit rot and disk corruption",
     ],
   },
@@ -507,42 +576,95 @@ export const architectureLayers: ArchitectureLayer[] = [
     iconName: "layers",
     color: "text-teal-400",
     crates: ["fsqlite-types", "fsqlite-error", "fsqlite-vfs"],
-    description: "Core type definitions, structured error types, and the virtual filesystem abstraction layer. The bedrock that every other layer depends on.",
+    description:
+      "Core type definitions, structured error types, and the virtual filesystem abstraction layer. The bedrock that every other layer depends on.",
   },
   {
     name: "Storage",
     iconName: "hardDrive",
     color: "text-blue-400",
     crates: ["fsqlite-btree", "fsqlite-pager", "fsqlite-wal"],
-    description: <>B-tree storage engine with <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> and <FrankenJargon term="learned-index">learned indexes</FrankenJargon>. <FrankenJargon term="arc-cache">ARC</FrankenJargon> page cache with <FrankenJargon term="cooling-protocol" />. Write-ahead logging (<FrankenJargon term="wal" />) with per-writer lanes and checkpointing.</>,
+    description: (
+      <>
+        B-tree storage engine with{" "}
+        <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> and{" "}
+        <FrankenJargon term="learned-index">learned indexes</FrankenJargon>.{" "}
+        <FrankenJargon term="arc-cache">ARC</FrankenJargon> page cache with{" "}
+        <FrankenJargon term="cooling-protocol" />. Write-ahead logging (<FrankenJargon term="wal" />
+        ) with per-writer lanes and checkpointing.
+      </>
+    ),
   },
   {
     name: "Concurrency & Durability",
     iconName: "shield",
     color: "text-amber-400",
     crates: ["fsqlite-mvcc", "fsqlite-observability"],
-    description: <>Page-level <FrankenJargon term="mvcc" /> with <FrankenJargon term="ssi">SSI</FrankenJargon> validation via the <FrankenJargon term="witness-plane" />. <FrankenJargon term="xor-delta">XOR delta</FrankenJargon> version chains for compact storage. <FrankenJargon term="write-coordinator">Single-threaded write coordinator</FrankenJargon> for lock-free commit sequencing. <FrankenJargon term="bocpd" /> regime detection auto-tunes GC heuristics. <FrankenJargon term="timeline-profiling">Chrome DevTools-compatible</FrankenJargon> transaction timelines.</>,
+    description: (
+      <>
+        Page-level <FrankenJargon term="mvcc" /> with <FrankenJargon term="ssi">SSI</FrankenJargon>{" "}
+        validation via the <FrankenJargon term="witness-plane" />.{" "}
+        <FrankenJargon term="xor-delta">XOR delta</FrankenJargon> version chains for compact
+        storage.{" "}
+        <FrankenJargon term="write-coordinator">Single-threaded write coordinator</FrankenJargon>{" "}
+        for lock-free commit sequencing. <FrankenJargon term="bocpd" /> regime detection auto-tunes
+        GC heuristics.{" "}
+        <FrankenJargon term="timeline-profiling">Chrome DevTools-compatible</FrankenJargon>{" "}
+        transaction timelines.
+      </>
+    ),
   },
   {
     name: "SQL Engine",
     iconName: "database",
     color: "text-purple-400",
-    crates: ["fsqlite-parser", "fsqlite-ast", "fsqlite-planner", "fsqlite-vdbe", "fsqlite-core", "fsqlite-func"],
-    description: <>Hand-written recursive descent parser, full AST, cost-based query planner with join ordering, and <FrankenJargon term="vdbe" /> bytecode interpreter. <FrankenJargon term="deterministic-rebase">Deterministic rebase</FrankenJargon> in the AST layer enables safe transaction replay. 150+ built-in scalar, aggregate, and window functions.</>,
+    crates: [
+      "fsqlite-parser",
+      "fsqlite-ast",
+      "fsqlite-planner",
+      "fsqlite-vdbe",
+      "fsqlite-core",
+      "fsqlite-func",
+    ],
+    description: (
+      <>
+        Hand-written recursive descent parser, full AST, cost-based query planner with join
+        ordering, and <FrankenJargon term="vdbe" /> bytecode interpreter.{" "}
+        <FrankenJargon term="deterministic-rebase">Deterministic rebase</FrankenJargon> in the AST
+        layer enables safe transaction replay. 150+ built-in scalar, aggregate, and window
+        functions.
+      </>
+    ),
   },
   {
     name: "Extensions",
     iconName: "zap",
     color: "text-rose-400",
-    crates: ["fsqlite-ext-fts3", "fsqlite-ext-fts5", "fsqlite-ext-icu", "fsqlite-ext-json", "fsqlite-ext-misc", "fsqlite-ext-rtree", "fsqlite-ext-session"],
-    description: "FTS3/FTS4 and FTS5 full-text search, ICU collation, JSON1 functions and virtual tables, R-tree spatial indexing, session/changeset support, and miscellaneous extensions.",
+    crates: [
+      "fsqlite-ext-fts3",
+      "fsqlite-ext-fts5",
+      "fsqlite-ext-icu",
+      "fsqlite-ext-json",
+      "fsqlite-ext-misc",
+      "fsqlite-ext-rtree",
+      "fsqlite-ext-session",
+    ],
+    description:
+      "FTS3/FTS4 and FTS5 full-text search, ICU collation, JSON1 functions and virtual tables, R-tree spatial indexing, session/changeset support, and miscellaneous extensions.",
   },
   {
     name: "Integration",
     iconName: "cpu",
     color: "text-teal-300",
     crates: ["fsqlite", "fsqlite-c-api", "fsqlite-cli", "fsqlite-e2e", "fsqlite-harness"],
-    description: <>Public API facade, C API compatibility shim, interactive SQL shell with syntax highlighting. <FrankenJargon term="sheaf-theoretic">Sheaf-theoretic</FrankenJargon> conformance harness with <FrankenJargon term="conformal-prediction">conformal prediction</FrankenJargon> performance bounds.</>,
+    description: (
+      <>
+        Public API facade, C API compatibility shim, interactive SQL shell with syntax highlighting.{" "}
+        <FrankenJargon term="sheaf-theoretic">Sheaf-theoretic</FrankenJargon> conformance harness
+        with <FrankenJargon term="conformal-prediction">conformal prediction</FrankenJargon>{" "}
+        performance bounds.
+      </>
+    ),
   },
 ];
 
@@ -553,19 +675,26 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "Why FrankenSQLite?",
     answer: (
       <>
-        SQLite is single-writer, has no self-healing, and is written in C. FrankenSQLite is a clean-room Rust reimplementation that adds <FrankenJargon term="mvcc" /> (concurrent writers), <FrankenJargon term="raptorq" /> (self-healing pages), and <FrankenJargon term="zero-unsafe" /> (compiler-enforced memory safety). Same SQL dialect, fundamentally different engine.
+        SQLite is single-writer, has no self-healing, and is written in C. FrankenSQLite is a
+        clean-room Rust reimplementation that adds <FrankenJargon term="mvcc" /> (concurrent
+        writers), <FrankenJargon term="raptorq" /> (self-healing pages), and{" "}
+        <FrankenJargon term="zero-unsafe" /> (compiler-enforced memory safety). Same SQL dialect,
+        fundamentally different engine.
       </>
     ),
   },
   {
     question: "Is it a drop-in replacement for SQLite?",
-    answer: "It reads and writes standard .sqlite3 files and supports the full SQL dialect. The Rust API is different from the C API, but migration is straightforward.",
+    answer:
+      "It reads and writes standard .sqlite3 files and supports the full SQL dialect. The Rust API is different from the C API, but migration is straightforward.",
   },
   {
     question: "How does MVCC work?",
     answer: (
       <>
-        FrankenSQLite maintains multiple versions of each page. Readers see a consistent snapshot while writers operate independently, resolving collisions with <FrankenJargon term="fcw" />. No more SQLITE_BUSY errors.
+        FrankenSQLite maintains multiple versions of each page. Readers see a consistent snapshot
+        while writers operate independently, resolving collisions with <FrankenJargon term="fcw" />.
+        No more SQLITE_BUSY errors.
       </>
     ),
   },
@@ -573,7 +702,9 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "What is RaptorQ self-healing?",
     answer: (
       <>
-        <FrankenJargon term="raptorq" /> fountain codes mathematically generate redundant repair symbols. If bit rot or disk corruption occurs, the database can automatically reconstruct damaged pages.
+        <FrankenJargon term="raptorq" /> fountain codes mathematically generate redundant repair
+        symbols. If bit rot or disk corruption occurs, the database can automatically reconstruct
+        damaged pages.
       </>
     ),
   },
@@ -581,7 +712,12 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "What are the storage modes?",
     answer: (
       <>
-        FrankenSQLite supports two storage modes. Compatibility mode reads and writes standard .sqlite3 files for direct migration from C SQLite. Native mode uses the <FrankenJargon term="ecs" /> format with append-only commits, <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>-protected pages, and built-in <FrankenJargon term="time-travel">time-travel queries</FrankenJargon>. Switch between them with <code className="text-teal-300 text-xs">PRAGMA fsqlite.mode</code>.
+        FrankenSQLite supports two storage modes. Compatibility mode reads and writes standard
+        .sqlite3 files for direct migration from C SQLite. Native mode uses the{" "}
+        <FrankenJargon term="ecs" /> format with append-only commits,{" "}
+        <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>-protected pages, and built-in{" "}
+        <FrankenJargon term="time-travel">time-travel queries</FrankenJargon>. Switch between them
+        with <code className="text-teal-300 text-xs">PRAGMA fsqlite.mode</code>.
       </>
     ),
   },
@@ -589,7 +725,11 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "What is the ECS format?",
     answer: (
       <>
-        <FrankenJargon term="ecs">ECS (Erasure-Coded Stream)</FrankenJargon> is FrankenSQLite&apos;s native storage format. It uses <FrankenJargon term="content-addressed" /> BLAKE3 hashes, append-only commits, and <FrankenJargon term="raptorq" /> repair symbols for continuous parity. The <FrankenJargon term="systematic-layout" /> means normal reads are zero-copy, and decoding only happens when corruption is detected.
+        <FrankenJargon term="ecs">ECS (Erasure-Coded Stream)</FrankenJargon> is FrankenSQLite&apos;s
+        native storage format. It uses <FrankenJargon term="content-addressed" /> BLAKE3 hashes,
+        append-only commits, and <FrankenJargon term="raptorq" /> repair symbols for continuous
+        parity. The <FrankenJargon term="systematic-layout" /> means normal reads are zero-copy, and
+        decoding only happens when corruption is detected.
       </>
     ),
   },
@@ -597,7 +737,11 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "How does the safe merge ladder work?",
     answer: (
       <>
-        The <FrankenJargon term="safe-merge-ladder" /> tries four strategies in order: (1) intent replay (re-applying the logical operation), (2) <FrankenJargon term="foata" /> merge (canonical reordering of independent writes), (3) <FrankenJargon term="xor-delta" /> merge (combining byte-level diffs), and (4) abort as a last resort. Most real-world &ldquo;conflicts&rdquo; are safely merged without aborting.
+        The <FrankenJargon term="safe-merge-ladder" /> tries four strategies in order: (1) intent
+        replay (re-applying the logical operation), (2) <FrankenJargon term="foata" /> merge
+        (canonical reordering of independent writes), (3) <FrankenJargon term="xor-delta" /> merge
+        (combining byte-level diffs), and (4) abort as a last resort. Most real-world
+        &ldquo;conflicts&rdquo; are safely merged without aborting.
       </>
     ),
   },
@@ -605,7 +749,11 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "What are time-travel queries?",
     answer: (
       <>
-        <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> let you inspect the database at any past point using <code className="text-teal-300 text-xs">FOR SYSTEM_TIME AS OF</code> with a commit sequence number or timestamp. The <FrankenJargon term="mvcc" /> version chain holds full history, meaning no snapshots, forks, or replicas are needed.
+        <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> let you inspect the
+        database at any past point using{" "}
+        <code className="text-teal-300 text-xs">FOR SYSTEM_TIME AS OF</code> with a commit sequence
+        number or timestamp. The <FrankenJargon term="mvcc" /> version chain holds full history,
+        meaning no snapshots, forks, or replicas are needed.
       </>
     ),
   },
@@ -613,7 +761,11 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "Does FrankenSQLite use any unsafe Rust?",
     answer: (
       <>
-        No. The entire 26-crate workspace enforces <FrankenJargon term="zero-unsafe" /> via <code className="text-teal-300 text-xs">#![forbid(unsafe_code)]</code>. This structurally prevents buffer overflows, use-after-free, double-free, and data races. The <FrankenJargon term="newtype-pattern" /> adds further compile-time safety by preventing accidental mixing of PageNumber with TxnId.
+        No. The entire 26-crate workspace enforces <FrankenJargon term="zero-unsafe" /> via{" "}
+        <code className="text-teal-300 text-xs">#![forbid(unsafe_code)]</code>. This structurally
+        prevents buffer overflows, use-after-free, double-free, and data races. The{" "}
+        <FrankenJargon term="newtype-pattern" /> adds further compile-time safety by preventing
+        accidental mixing of PageNumber with TxnId.
       </>
     ),
   },
@@ -621,7 +773,11 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "How does encryption work?",
     answer: (
       <>
-        Every 4KB page is encrypted independently with <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon>. The page number is bound as authenticated data, so moving ciphertext between page slots is detected and rejected. Keys use a <FrankenJargon term="dek-kek">DEK/KEK envelope</FrankenJargon>, so changing the passphrase rewraps a single 32-byte key instead of re-encrypting every page.
+        Every 4KB page is encrypted independently with{" "}
+        <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon>. The page number is bound as
+        authenticated data, so moving ciphertext between page slots is detected and rejected. Keys
+        use a <FrankenJargon term="dek-kek">DEK/KEK envelope</FrankenJargon>, so changing the
+        passphrase rewraps a single 32-byte key instead of re-encrypting every page.
       </>
     ),
   },
@@ -629,7 +785,11 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "What are learned indexes and database cracking?",
     answer: (
       <>
-        <FrankenJargon term="learned-index">Learned indexes</FrankenJargon> fit a piecewise linear model to the key distribution, replacing B-tree traversal with arithmetic prediction plus a bounded scan. <FrankenJargon term="database-cracking">Database cracking</FrankenJargon> partitions column data in-place as queries arrive, so the index builds itself from the workload. Together they provide adaptive, zero-admin indexing.
+        <FrankenJargon term="learned-index">Learned indexes</FrankenJargon> fit a piecewise linear
+        model to the key distribution, replacing B-tree traversal with arithmetic prediction plus a
+        bounded scan. <FrankenJargon term="database-cracking">Database cracking</FrankenJargon>{" "}
+        partitions column data in-place as queries arrive, so the index builds itself from the
+        workload. Together they provide adaptive, zero-admin indexing.
       </>
     ),
   },
@@ -637,13 +797,19 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "How does the page cache work?",
     answer: (
       <>
-        FrankenSQLite uses an <FrankenJargon term="arc-cache">ARC</FrankenJargon> page cache that self-tunes the balance between recency and frequency. On top of that, a <FrankenJargon term="cooling-protocol" /> (HOT/COOLING/COLD) prevents full-table scans from thrashing the buffer pool. Hot B-tree pages use <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> to bypass the cache lookup entirely.
+        FrankenSQLite uses an <FrankenJargon term="arc-cache">ARC</FrankenJargon> page cache that
+        self-tunes the balance between recency and frequency. On top of that, a{" "}
+        <FrankenJargon term="cooling-protocol" /> (HOT/COOLING/COLD) prevents full-table scans from
+        thrashing the buffer pool. Hot B-tree pages use{" "}
+        <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> to bypass the cache
+        lookup entirely.
       </>
     ),
   },
   {
     question: "Is it production ready?",
-    answer: "FrankenSQLite is under active development. The architecture is solid but it should be evaluated carefully for production workloads. Contributions welcome!",
+    answer:
+      "FrankenSQLite is under active development. The architecture is solid but it should be evaluated carefully for production workloads. Contributions welcome!",
   },
 ];
 
@@ -667,8 +833,10 @@ export interface FlywheelTool {
 
 export const flywheelDescription = {
   title: "The Agent Flywheel",
-  subtitle: "A high-velocity AI engineering ecosystem designed for building systems like FrankenSQLite.",
-  description: "FrankenSQLite wasn't built manually. It was architected and implemented through a recursive feedback loop of specialized AI agents, each handling a different layer of the 26-crate workspace.",
+  subtitle:
+    "A high-velocity AI engineering ecosystem designed for building systems like FrankenSQLite.",
+  description:
+    "FrankenSQLite wasn't built manually. It was architected and implemented through a recursive feedback loop of specialized AI agents, each handling a different layer of the 26-crate workspace.",
 };
 
 export const flywheelTools: FlywheelTool[] = [

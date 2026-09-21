@@ -41,10 +41,12 @@ export function useIntersectionObserver<T extends HTMLElement = HTMLElement>({
         }
         setIsIntersecting(isNowIntersecting);
       },
-      { threshold, rootMargin }
+      { threshold, rootMargin },
     );
     observer.observe(element);
-    return () => { observer.disconnect(); };
+    return () => {
+      observer.disconnect();
+    };
   }, [threshold, rootMargin, triggerOnce]);
 
   return { ref, isIntersecting };

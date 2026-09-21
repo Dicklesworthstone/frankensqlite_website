@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { captureConsole, waitForHydration } from "./helpers";
 
 /**
@@ -18,10 +18,7 @@ const SECTIONS = [
   "pipeline",
 ] as const;
 
-async function scrollToSection(
-  page: import("@playwright/test").Page,
-  sectionId: string,
-) {
+async function scrollToSection(page: import("@playwright/test").Page, sectionId: string) {
   await page.locator(`#${sectionId}`).scrollIntoViewIfNeeded();
   await page.waitForTimeout(1000);
 }
@@ -29,9 +26,7 @@ async function scrollToSection(
 /**
  * Check that the page has no horizontal overflow at the given viewport.
  */
-async function assertNoHorizontalOverflow(
-  page: import("@playwright/test").Page,
-) {
+async function assertNoHorizontalOverflow(page: import("@playwright/test").Page) {
   const overflow = await page.evaluate(() => {
     return document.documentElement.scrollWidth > window.innerWidth;
   });
@@ -104,9 +99,7 @@ test.describe("Homepage Mobile Layout", () => {
   });
 
   for (const sectionId of SECTIONS) {
-    test(`section #${sectionId} fits within viewport width`, async ({
-      page,
-    }) => {
+    test(`section #${sectionId} fits within viewport width`, async ({ page }) => {
       await page.goto("/");
       await waitForHydration(page);
       await scrollToSection(page, sectionId);
@@ -217,10 +210,7 @@ test.describe("Spec Evolution Mobile", () => {
 
     // Filter out hydration warnings
     const realErrors = consoleLogs.filter(
-      (e) =>
-        e.type === "error" &&
-        !e.text.includes("hydrat") &&
-        !e.text.includes("Hydrat"),
+      (e) => e.type === "error" && !e.text.includes("hydrat") && !e.text.includes("Hydrat"),
     );
     expect(realErrors).toHaveLength(0);
   });

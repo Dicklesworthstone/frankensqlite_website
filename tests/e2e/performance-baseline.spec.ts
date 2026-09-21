@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { waitForHydration } from "./helpers";
 
 /**
@@ -35,15 +35,11 @@ async function measurePerformance(
   await waitForHydration(page);
 
   const metrics = await page.evaluate(() => {
-    const navigation = performance.getEntriesByType(
-      "navigation",
-    )[0] as PerformanceNavigationTiming;
+    const navigation = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming;
 
     // LCP from PerformanceObserver (may not be available immediately)
     let lcp: number | null = null;
-    const lcpEntries = performance.getEntriesByType(
-      "largest-contentful-paint",
-    );
+    const lcpEntries = performance.getEntriesByType("largest-contentful-paint");
     if (lcpEntries.length > 0) {
       lcp = lcpEntries[lcpEntries.length - 1].startTime;
     }
@@ -62,9 +58,7 @@ async function measurePerformance(
       lcp,
       cls,
       ttfb: navigation ? navigation.responseStart - navigation.requestStart : null,
-      domContentLoaded: navigation
-        ? navigation.domContentLoadedEventEnd - navigation.startTime
-        : 0,
+      domContentLoaded: navigation ? navigation.domContentLoadedEventEnd - navigation.startTime : 0,
       load: navigation ? navigation.loadEventEnd - navigation.startTime : 0,
     };
   });
@@ -81,9 +75,7 @@ async function measurePerformance(
 
 test.describe("Performance Baseline", () => {
   for (const route of ROUTES) {
-    test(`${route.name} (${route.path}) — measure Core Web Vitals`, async ({
-      page,
-    }) => {
+    test(`${route.name} (${route.path}) — measure Core Web Vitals`, async ({ page }) => {
       const metrics = await measurePerformance(page, route.path);
 
       // Log metrics for baseline tracking

@@ -10,30 +10,73 @@ import { VizExposition } from "./viz-exposition";
 interface TimelineEvent {
   id: string;
   time: number; // percentage 0-100
-  type: "begin" | "read" | "write" | "savepoint" | "rollback" | "commit";
+  type: "begin" | "read" | "write" | "savepoint" | "rollback" | "pragma" | "commit";
   label: string;
 }
+
+/*
+ * Example output is abridged from the shape built in
+ * crates/fsqlite-core/src/connection.rs (txn_timeline_json_rows,
+ * txn_advisor_rows). Timings are illustrative. pid/tid/args on each trace
+ * event and the "advisor" thresholds object are omitted for space.
+ */
+
+const HEALTHY_JSON = `{
+  "active": true,
+  "snapshot_age_ms": 9,
+  "first_read_ms": 2,
+  "first_write_ms": 6,
+  "read_ops": 2,
+  "write_ops": 1,
+  "savepoint_depth": 0,
+  "active_rollbacks": 0,
+  "traceEvents": [
+    { "name": "txn_lifecycle", "ph": "B", "ts": 0 },
+    { "name": "first_read",    "ph": "i", "ts": 2000 },
+    { "name": "first_write",   "ph": "i", "ts": 6000 },
+    { "name": "txn_counters",  "ph": "C", "ts": 9000 }
+  ]
+}`;
+
+const ANTIPATTERN_JSON = `{
+  "active": true,
+  "snapshot_age_ms": 6210,
+  "first_read_ms": 222,
+  "first_write_ms": 2960,
+  "read_ops": 1,
+  "write_ops": 2,
+  "savepoint_depth": 1,
+  "active_rollbacks": 1,
+  "traceEvents": [
+    { "name": "txn_lifecycle", "ph": "B", "ts": 0 },
+    { "name": "first_read",    "ph": "i", "ts": 222000 },
+    { "name": "first_write",   "ph": "i", "ts": 2960000 },
+    { "name": "txn_counters",  "ph": "C", "ts": 6210000 }
+  ]
+}`;
 
 export default function TimelineProfiler() {
   const [activeTab, setActiveTab] = useState<"healthy" | "antipattern">("healthy");
 
   const healthyEvents: TimelineEvent[] = [
     { id: "h1", time: 5, type: "begin", label: "BEGIN" },
-    { id: "h2", time: 20, type: "read", label: "SELECT (idx_users)" },
-    { id: "h3", time: 35, type: "read", label: "SELECT (users)" },
-    { id: "h4", time: 50, type: "write", label: "UPDATE (users)" },
-    { id: "h5", time: 80, type: "commit", label: "COMMIT" },
+    { id: "h2", time: 20, type: "read", label: "SELECT (first read)" },
+    { id: "h3", time: 35, type: "read", label: "SELECT" },
+    { id: "h4", time: 55, type: "write", label: "UPDATE (first write)" },
+    { id: "h5", time: 75, type: "pragma", label: "PRAGMA fsqlite_txn_timeline_json" },
+    { id: "h6", time: 88, type: "commit", label: "COMMIT" },
   ];
 
   const antipatternEvents: TimelineEvent[] = [
-    { id: "a1", time: 5, type: "begin", label: "BEGIN" },
-    { id: "a2", time: 15, type: "read", label: "SELECT" },
-    { id: "a3", time: 30, type: "savepoint", label: "SAVEPOINT 1" },
-    { id: "a4", time: 45, type: "write", label: "INSERT" },
-    { id: "a5", time: 60, type: "savepoint", label: "SAVEPOINT 2" },
-    { id: "a6", time: 70, type: "write", label: "UPDATE" },
-    { id: "a7", time: 85, type: "rollback", label: "ROLLBACK TO 1" },
-    { id: "a8", time: 95, type: "commit", label: "COMMIT" },
+    { id: "a1", time: 4, type: "begin", label: "BEGIN" },
+    { id: "a2", time: 7, type: "read", label: "SELECT (first read)" },
+    { id: "a3", time: 40, type: "savepoint", label: "SAVEPOINT a" },
+    { id: "a4", time: 44, type: "write", label: "INSERT (first write)" },
+    { id: "a5", time: 56, type: "savepoint", label: "SAVEPOINT b" },
+    { id: "a6", time: 62, type: "write", label: "UPDATE" },
+    { id: "a7", time: 74, type: "rollback", label: "ROLLBACK TO a" },
+    { id: "a8", time: 88, type: "pragma", label: "PRAGMA fsqlite_txn_timeline_json" },
+    { id: "a9", time: 96, type: "commit", label: "COMMIT" },
   ];
 
   const events = activeTab === "healthy" ? healthyEvents : antipatternEvents;
@@ -52,6 +95,8 @@ export default function TimelineProfiler() {
         return "bg-purple-500";
       case "rollback":
         return "bg-red-500";
+      case "pragma":
+        return "bg-white";
       default:
         return "bg-slate-500";
     }
@@ -60,8 +105,9 @@ export default function TimelineProfiler() {
   return (
     <VizContainer
       title="Transaction Observability"
-      description="Database tuning usually requires expensive external APM agents. FrankenSQLite has built-in transaction profiling via PRAGMA fsqlite.txn_timeline_json. It emits Chrome DevTools-compatible traces and actively advises you on anti-patterns."
+      description="FrankenSQLite exposes transaction lifecycle data through PRAGMAs. PRAGMA fsqlite_txn_timeline_json returns a JSON snapshot of the connection's current transaction for timeline tooling, and PRAGMA fsqlite_txn_advisor flags patterns such as long-running transactions."
       minHeight={450}
+      status="live"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 justify-between gap-6 relative">
         {/* Tabs */}
@@ -82,7 +128,7 @@ export default function TimelineProfiler() {
 
         {/* Timeline Chart */}
         <div className="flex-1 bg-white/[0.02] border border-white/10 rounded-xl p-6 relative flex flex-col justify-center">
-          <div className="relative h-20 w-full mb-8">
+          <div className="relative h-20 w-full mb-2">
             {/* Base line */}
             <div className="absolute top-1/2 left-0 right-0 h-1 bg-white/10 -translate-y-1/2 rounded" />
 
@@ -112,9 +158,16 @@ export default function TimelineProfiler() {
             </AnimatePresence>
           </div>
 
+          <div className="text-center text-[9px] font-mono text-slate-500 mb-6">
+            BEGIN to COMMIT: {activeTab === "healthy" ? "≈ 11 ms" : "≈ 6.8 s"} (illustrative).
+            Hover a dot to see the statement.
+          </div>
+
           {/* JSON Output Snippet */}
           <div className="bg-black/60 border border-white/5 rounded-lg p-3 font-mono text-[10px] text-slate-400 overflow-x-auto">
-            <div className="text-teal-500/50 mb-2">{"// PRAGMA fsqlite.txn_timeline_json"}</div>
+            <div className="text-teal-500/50 mb-2">
+              {"// PRAGMA fsqlite_txn_timeline_json; (run before COMMIT, abridged)"}
+            </div>
             <AnimatePresence mode="wait">
               {activeTab === "healthy" ? (
                 <motion.pre
@@ -123,12 +176,7 @@ export default function TimelineProfiler() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                 >
-                  {`{
-  "txn_id": 104859,
-  "duration_ms": 12.4,
-  "operations": 5,
-  "advisor_warnings": []
-}`}
+                  {HEALTHY_JSON}
                 </motion.pre>
               ) : (
                 <motion.pre
@@ -137,15 +185,7 @@ export default function TimelineProfiler() {
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                 >
-                  {`{
-  "txn_id": 104860,
-  "duration_ms": 845.1,
-  "operations": 8,
-  "advisor_warnings": [
-    "LONG_TXN: Transaction held snapshot for > 500ms",
-    "ROLLBACK_PRESSURE: Deep savepoint rollback discards MVCC state"
-  ]
-}`}
+                  {ANTIPATTERN_JSON}
                 </motion.pre>
               )}
             </AnimatePresence>
@@ -165,13 +205,14 @@ export default function TimelineProfiler() {
               <div className="w-10 h-10 rounded-full bg-teal-500/20 flex items-center justify-center shrink-0">
                 <Check className="w-5 h-5 text-teal-400" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">
-                  Engine Advisor
+                  PRAGMA fsqlite_txn_advisor
                 </div>
                 <div className="text-xs text-slate-300 leading-relaxed">
-                  Transaction is crisp and short-lived. No excessive locking or long-held MVCC
-                  snapshots detected.
+                  No rows. The transaction is short and under every default threshold: 5,000 ms
+                  for <code>long_txn</code>, 256 read operations for <code>large_read_set</code>,
+                  savepoint depth 8 for <code>deep_savepoint_stack</code>.
                 </div>
               </div>
             </motion.div>
@@ -186,14 +227,17 @@ export default function TimelineProfiler() {
               <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
                 <ShieldAlert className="w-5 h-5 text-amber-400" />
               </div>
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-1">
-                  Anti-Pattern Warning
+              <div className="min-w-0 flex flex-col gap-2">
+                <div className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+                  PRAGMA fsqlite_txn_advisor
+                </div>
+                <div className="overflow-x-auto rounded border border-amber-500/20 bg-black/40 px-2 py-1.5 font-mono text-[10px] text-amber-200/90 whitespace-nowrap">
+                  long_txn | warn | actual 6210 | threshold 5000
                 </div>
                 <div className="text-xs text-slate-300 leading-relaxed">
-                  Deep savepoints and rollbacks discard expensive MVCC copy-on-write state.
-                  Long-running transactions pin old snapshots, preventing Garbage Collection and
-                  causing memory bloat.
+                  &ldquo;transaction has been active for 6210ms; consider reducing scope or
+                  committing sooner.&rdquo; While it stays open, its snapshot holds back MVCC
+                  version cleanup.
                 </div>
               </div>
             </motion.div>
@@ -205,15 +249,18 @@ export default function TimelineProfiler() {
         whatItIs={
           <>
             <div>
-              You are looking at the output of FrankenSQLite&apos;s native{" "}
-              <FrankenJargon term="timeline-profiling">Timeline Profiler</FrankenJargon>. Because
-              the engine controls its own execution down to the{" "}
-              <FrankenJargon term="vdbe">VDBE</FrankenJargon> opcode level, it can log the exact
-              microsecond a transaction starts, reads, writes, issues a savepoint, and commits.
+              The dots on the line are the statements an application ran inside one transaction
+              (timings are illustrative). The JSON is what{" "}
+              <code>PRAGMA fsqlite_txn_timeline_json</code> returns when you query it on the same
+              connection before <code>COMMIT</code>. Its aliases are{" "}
+              <code>txn_timeline_json</code> and <code>fsqlite.txn_timeline_json</code>.
             </div>
             <p>
-              It outputs this data as JSON compatible with Google Chrome&apos;s DevTools performance
-              tab, providing full per-operation visibility into transaction behavior.
+              The engine doesn&apos;t log every statement. It records when the transaction began,
+              when it first read and first wrote (in milliseconds), and running counters for
+              reads, writes, savepoint depth and rollbacks. The same data is repeated as a{" "}
+              <code>traceEvents</code> array of trace-event records (<code>ph</code>,{" "}
+              <code>ts</code> in microseconds) for timeline tools.
             </p>
           </>
         }
@@ -224,26 +271,35 @@ export default function TimelineProfiler() {
               <strong>Anti-Pattern Detected</strong> tabs.
             </p>
             <p>
-              Notice how the anti-pattern transaction takes way longer, but more importantly, look
-              at the Engine Advisor JSON output below it. The engine actively analyzes the trace and
-              emits warnings like <code>LONG_TXN</code> and <code>ROLLBACK_PRESSURE</code>.
+              In the second, the application reads, then leaves the transaction open for seconds
+              before writing, nests two savepoints and rolls one back. Its JSON shows a 6.2-second
+              snapshot age, and <code>PRAGMA fsqlite_txn_advisor</code> returns a{" "}
+              <code>long_txn</code> row with the measured value and the threshold it crossed.
+              The advisor can also return <code>large_read_set</code>,{" "}
+              <code>deep_savepoint_stack</code> and <code>rollback_pressure</code> rows. The last
+              one looks at the connection&apos;s history: once it has completed at least 4
+              transactions, it fires when rollbacks (<code>ROLLBACK TO</code> included) reach 50%
+              of them.
             </p>
           </>
         }
         whyItMatters={
           <>
             <div>
-              Debugging a slow database typically requires either guesswork or an external APM agent
-              that injects overhead and still lacks visibility into the engine&apos;s internal lock
-              queues and <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>{" "}
-              lifecycle.
+              Long transactions cause trouble in any{" "}
+              <FrankenJargon term="mvcc">MVCC</FrankenJargon> engine. In FrankenSQLite, an open
+              transaction&apos;s <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>{" "}
+              holds back the garbage-collection horizon, so older page versions can&apos;t be
+              pruned until it ends.
             </div>
             <div>
-              By building <FrankenJargon term="timeline-profiling">observability</FrankenJargon>{" "}
-              into the storage engine itself, developers get zero-configuration performance data and
-              proactive advice on patterns that cause{" "}
-              <FrankenJargon term="mvcc">MVCC</FrankenJargon> version bloat, such as long-held
-              snapshots that prevent garbage collection.
+              Because the counters live in the engine, you can read them with plain SQL from the
+              same connection, with no external agent. The{" "}
+              <FrankenJargon term="timeline-profiling">advisor</FrankenJargon> thresholds are
+              adjustable with <code>PRAGMA fsqlite.txn_advisor_long_txn_ms</code>,{" "}
+              <code>fsqlite.txn_advisor_large_read_ops</code>,{" "}
+              <code>fsqlite.txn_advisor_savepoint_depth</code> and{" "}
+              <code>fsqlite.txn_advisor_rollback_ratio_percent</code>.
             </div>
           </>
         }

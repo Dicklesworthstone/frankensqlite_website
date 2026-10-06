@@ -177,10 +177,9 @@ export default function HomePage() {
 
               <div className="text-lg md:text-xl text-slate-400 font-medium leading-relaxed max-w-2xl mb-12">
                 SQLite, rewritten from scratch in Rust. It opens the database files you already
-                have, speaks the same SQL, and lets{" "}
-                <FrankenJargon term="mvcc">more than one connection write at a time</FrankenJargon>
-                , with <FrankenJargon term="ssi">serializable isolation</FrankenJargon> on by
-                default.
+                have, speaks the same SQL, and adds{" "}
+                <FrankenJargon term="mvcc">concurrent writers</FrankenJargon> with{" "}
+                <FrankenJargon term="ssi">serializable isolation</FrankenJargon> on by default.
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
@@ -322,10 +321,8 @@ export default function HomePage() {
               key={group.status}
               className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 flex flex-col"
             >
-              <div className="flex items-center justify-between gap-3 mb-2">
-                <h3 className="text-lg font-black text-white">{group.heading}</h3>
-                <StatusBadge status={group.status} />
-              </div>
+              <StatusBadge status={group.status} className="self-start mb-3" />
+              <h3 className="text-lg font-black text-white mb-2">{group.heading}</h3>
               <p className="text-xs text-slate-500 mb-5">{group.blurb}</p>
               <ul className="space-y-4">
                 {group.items.map((item) => (

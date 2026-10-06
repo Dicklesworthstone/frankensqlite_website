@@ -170,7 +170,7 @@ export default function FrankenMermaidDiagram() {
           viewBox={`0 0 ${VB_W} ${VB_H}`}
           className="w-full h-auto"
           role="img"
-          aria-label="FrankenSQLite architecture: 6 layers from Integration down to Foundation"
+          aria-label={`FrankenSQLite architecture: ${layersTopDown.length} layers, from ${layersTopDown[0]?.name} down to ${layersTopDown[layersTopDown.length - 1]?.name}`}
         >
           <defs>
             <filter id="archGlow" x="-50%" y="-50%" width="200%" height="200%">

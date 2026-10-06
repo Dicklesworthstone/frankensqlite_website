@@ -313,6 +313,19 @@ export default function GettingStartedPage() {
                 on Unix). Back up your data the same way you would with SQLite.
               </p>
             </div>
+            <div className="rounded-xl border border-red-400/20 bg-red-400/[0.03] p-6">
+              <div className="flex flex-wrap items-center gap-3 mb-2">
+                <h3 className="text-base font-black text-white">
+                  Two engines on one file at the same time
+                </h3>
+              </div>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                FrankenSQLite and stock SQLite can each open a database the other wrote, but
+                don&apos;t run them against the same file concurrently; that combination has a
+                data-loss report against it. Checkpoint, close, then hand the file over. For the same
+                reason, never let a 0.3.x and a 0.4.x FrankenSQLite share one WAL database.
+              </p>
+            </div>
             <div className="rounded-xl border border-slate-400/20 bg-slate-400/[0.03] p-6">
               <div className="flex flex-wrap items-center gap-3 mb-2">
                 <h3 className="text-base font-black text-white">

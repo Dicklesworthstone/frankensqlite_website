@@ -266,6 +266,11 @@ export const statusBoard: StatusGroup[] = [
           "Shared-memory coordination exists, but MVCC authority is still process-local. Proven only up to the scale the swarm harness has run.",
       },
       {
+        name: "Interop with stock SQLite",
+        detail:
+          "Either engine can open the other's files. Running both on the same file at the same time is not supported.",
+      },
+      {
         name: "Time travel",
         detail: "FOR SYSTEM_TIME AS OF works on :memory: databases. File-backed history is design work.",
       },
@@ -956,8 +961,11 @@ export const faq: { question: string; answer: ReactNode }[] = [
         For a Rust program, possibly, but test it first. It opens existing databases and stock{" "}
         <code className="text-teal-300 text-xs">sqlite3</code> can read what it writes. The Rust API
         is its own (async, <code className="text-teal-300 text-xs">Connection</code> is{" "}
-        <code className="text-teal-300 text-xs">!Send</code>), not rusqlite&apos;s. The project is
-        pre-1.0, ships frequent fixes, and lists its known failures in each release.
+        <code className="text-teal-300 text-xs">!Send</code>), not rusqlite&apos;s, and the optional
+        C shim covers only a common subset of the <code className="text-teal-300 text-xs">sqlite3_*</code>{" "}
+        API. Don&apos;t run it and stock SQLite against the same file at the same time; hand files
+        over after a checkpoint. The project is pre-1.0, ships frequent fixes, and lists its known
+        failures in each release.
       </>
     ),
   },

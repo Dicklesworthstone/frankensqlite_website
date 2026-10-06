@@ -492,8 +492,9 @@ export default function HomePage() {
             <br />
             <br />
             FrankenSQLite keeps SQLite&apos;s WAL format and its{" "}
-            <FrankenJargon term="wal-index">shared-memory WAL index</FrankenJargon>, which is how it
-            can share a live WAL with stock SQLite readers. With concurrent writers, the
+            <FrankenJargon term="wal-index">shared-memory WAL index</FrankenJargon>, so a database
+            can move between it and stock SQLite after a checkpoint. (Running both engines on the
+            same file at the same time is not supported.) With concurrent writers, the
             interesting part is the commit itself: each connection validates and publishes its
             frames inside a short guarded section, so the log stays one ordered sequence even
             though the work that produced it ran in parallel. Use the tabs below to switch between
@@ -1061,12 +1062,12 @@ export default function HomePage() {
           <div className="mb-16 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/20 bg-teal-500/5 text-[10px] font-black uppercase tracking-[0.3em] text-teal-500 mb-8">
               <Activity className="h-3 w-3" />
-              Origin_Protocol
+              Who built it
             </div>
 
             <FrankenGlitch trigger="hover" intensity="low">
               <h2 className="text-4xl md:text-6xl font-black text-white tracking-tighter leading-tight uppercase">
-                Crafted by <br />
+                Built by <br />
                 <span className="text-animate-green">Jeffrey Emanuel.</span>
               </h2>
             </FrankenGlitch>
@@ -1100,7 +1101,7 @@ export default function HomePage() {
                     data-magnetic="true"
                     className="px-8 py-4 rounded-2xl bg-teal-500 text-black font-black text-sm hover:bg-white transition-all flex items-center justify-center gap-3 shadow-[0_0_30px_rgba(20,184,166,0.2)]"
                   >
-                    EXPLORE FLYWHEEL
+                    THE AGENT FLYWHEEL
                     <ExternalLink className="h-4 w-4" />
                   </a>
                 </Magnetic>
@@ -1113,7 +1114,7 @@ export default function HomePage() {
                     className="px-8 py-4 rounded-2xl bg-white/5 border border-white/10 text-white font-black text-sm hover:bg-white/10 transition-all flex items-center justify-center gap-3"
                   >
                     <Github className="h-4 w-4" />
-                    AUTHOR_CORE
+                    MORE PROJECTS
                   </a>
                 </Magnetic>
               </div>
@@ -1143,7 +1144,7 @@ export default function HomePage() {
                 <div className="absolute bottom-4 left-4 flex items-center gap-3 px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/5">
                   <div className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-ping" />
                   <span className="text-[8px] font-black text-white uppercase tracking-widest">
-                    Flywheel_Generated
+                    Built with agents
                   </span>
                 </div>
               </motion.div>

@@ -306,9 +306,10 @@ export default function ArchitecturePage() {
           numbers to WAL frames, so a reader can find the right frame without scanning the log.
         </Prose>
         <Prose last>
-          FrankenSQLite reads and writes that structure in SQLite&apos;s own format, which is what
-          lets it share a live WAL with stock SQLite readers. Type a page number below to watch the
-          lookup probe the table.
+          FrankenSQLite reads and writes that structure in SQLite&apos;s own format and honors its
+          reader marks and checkpoint rules. Even so, don&apos;t point FrankenSQLite and stock
+          SQLite at the same file at the same time; hand a database from one to the other after a
+          checkpoint. Type a page number below to watch the lookup probe the table.
         </Prose>
         <WalIndexShm />
       </Topic>

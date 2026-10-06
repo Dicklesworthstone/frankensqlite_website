@@ -67,7 +67,7 @@ export const jargonDictionary: Record<string, JargonTerm> = {
   wal: {
     term: "WAL (Write-Ahead Log)",
     short: "An append-only file where changes land before they are copied into the main database.",
-    long: "Each changed page is appended as a frame, and the last frame of a transaction marks the commit. Readers check the WAL for newer versions of the pages they need. A checkpoint later copies frames back into the main file. FrankenSQLite uses SQLite's WAL format, so the two can share a WAL.",
+    long: "Each changed page is appended as a frame, and the last frame of a transaction marks the commit. Readers check the WAL for newer versions of the pages they need. A checkpoint later copies frames back into the main file. FrankenSQLite uses SQLite's WAL format, so a database can move between the two after a checkpoint (running both on one file at the same time isn't supported).",
     analogy:
       "A doctor's notepad: quick notes during the day, copied into the permanent patient files later.",
     related: ["wal-index", "mvcc"],
@@ -234,7 +234,7 @@ export const jargonDictionary: Record<string, JargonTerm> = {
   "wal-index": {
     term: "WAL Index (-shm file)",
     short: "A shared-memory hash table that tells readers which WAL frame holds the newest copy of a page.",
-    long: "Without it, a reader would have to scan the WAL to find a page. SQLite keeps a hash table in the -shm file, mapping page numbers to frames, that readers can probe directly. FrankenSQLite reads and writes this structure in SQLite's format so it can share a live WAL with stock SQLite readers.",
+    long: "Without it, a reader would have to scan the WAL to find a page. SQLite keeps a hash table in the -shm file, mapping page numbers to frames, that readers can probe directly. FrankenSQLite reads and writes this structure in SQLite's own format.",
     related: ["wal"],
   },
   "conformal-prediction": {

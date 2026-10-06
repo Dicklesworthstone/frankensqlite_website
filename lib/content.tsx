@@ -173,10 +173,11 @@ export const features: Feature[] = [
     status: "partial",
     description: (
       <>
-        Native file-backed connections can write <FrankenJargon term="raptorq" />{" "}
-        <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> to a{" "}
-        <code className="text-teal-300 text-xs">.wal-fec</code> sidecar after each WAL fsync. The
-        standard recovery path doesn&apos;t read them yet, so don&apos;t count on automatic repair.
+        File-backed connections generate <FrankenJargon term="raptorq" />{" "}
+        <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> for the WAL in the
+        background, into a <code className="text-teal-300 text-xs">-wal-fec</code> sidecar. Opening
+        a damaged database doesn&apos;t use them automatically yet; there is an explicit repair API
+        on Unix.
       </>
     ),
     icon: "layers",
@@ -250,14 +251,14 @@ export const statusBoard: StatusGroup[] = [
       {
         name: "CLI and packages",
         detail:
-          "Signed prebuilt binaries for Linux, macOS and Windows, plus the fsqlite crates on crates.io.",
+          "Signed prebuilt binaries for Linux (x86-64, ARM64), macOS and Windows, plus the fsqlite crates on crates.io.",
       },
     ],
   },
   {
     status: "partial",
     heading: "Partly there",
-    blurb: "Usable in some configurations, with known edges.",
+    blurb: "Opt-in, or usable in some configurations with known edges.",
     items: [
       {
         name: "Multi-process writers",
@@ -271,7 +272,7 @@ export const statusBoard: StatusGroup[] = [
       {
         name: "WAL repair symbols",
         detail:
-          "Generated into a .wal-fec sidecar on native file-backed connections; recovery doesn't consume them yet.",
+          "Generated in the background into a -wal-fec sidecar (PRAGMA raptorq_repair_symbols sets how many). Normal recovery doesn't use them; an explicit repair_and_open API exists on Unix.",
       },
       {
         name: "Compiled execution",
@@ -281,6 +282,11 @@ export const statusBoard: StatusGroup[] = [
       {
         name: "VDBE JIT",
         detail: "Functional but off by default. PRAGMA fsqlite.jit_enable = 1 opts in.",
+      },
+      {
+        name: "Browser build",
+        detail:
+          "A WASM build with a TypeScript SDK and worker. In-memory, with explicit IndexedDB snapshots; the packages aren't on npm yet.",
       },
     ],
   },
@@ -297,6 +303,11 @@ export const statusBoard: StatusGroup[] = [
         name: "Page encryption",
         detail:
           "XChaCha20-Poly1305 with Argon2id key wrapping lives in fsqlite-pager. No PRAGMA key/rekey dispatch yet.",
+      },
+      {
+        name: "Research code in fsqlite-btree",
+        detail:
+          "Learned indexes, database cracking, a cooling-stage cache protocol and pointer swizzling. Implemented and tested; nothing in the query path calls them.",
       },
       {
         name: "Vectorized operators",
@@ -346,7 +357,7 @@ export const crates: { name: string; description: ReactNode }[] = [
   { name: "fsqlite-vfs", description: "OS abstraction: files, locks, mmap and shared memory" },
   {
     name: "fsqlite-pager",
-    description: "Page cache (S3-FIFO by default, ARC optional), journal, write-back",
+    description: "Page cache (S3-FIFO eviction), rollback journal, write-back",
   },
   {
     name: "fsqlite-wal",
@@ -499,7 +510,7 @@ export const comparisonData: ComparisonRow[] = [
   {
     feature: "Corruption repair",
     cells: {
-      frankensqlite: partial("WAL repair symbols written, recovery pending"),
+      frankensqlite: partial("WAL repair symbols; auto-recovery pending"),
       csqlite: no("Detect only"),
       turso: no("Detect, truncate torn tail"),
       libsql: no("Detect only"),
@@ -560,7 +571,8 @@ use asupersync::runtime::RuntimeBuilder;
 use fsqlite::{Connection, SqliteValue};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let runtime = RuntimeBuilder::current_thread().build()?;
+    // A small blocking pool for file I/O, the same setup the fsqlite CLI uses.
+    let runtime = RuntimeBuilder::current_thread().blocking_threads(1, 2).build()?;
     runtime.block_on(async {
         let conn = Connection::open("app.db").await?;
 
@@ -601,7 +613,7 @@ use std::thread;
 const DB: &str = "events.db";
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    RuntimeBuilder::current_thread().build()?.block_on(async {
+    RuntimeBuilder::current_thread().blocking_threads(1, 2).build()?.block_on(async {
         let conn = Connection::open(DB).await?;
         conn.execute("CREATE TABLE IF NOT EXISTS events (writer INTEGER, seq INTEGER);")
             .await?;
@@ -612,11 +624,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let writers: Vec<_> = (0..4_i64)
         .map(|writer| {
             thread::spawn(move || -> Result<(), FrankenError> {
-                let runtime = RuntimeBuilder::current_thread().build().expect("runtime");
+                let runtime = RuntimeBuilder::current_thread()
+                    .blocking_threads(1, 2)
+                    .build()
+                    .expect("runtime");
                 runtime.block_on(async {
                     let conn = Connection::open(DB).await?;
                     for seq in 0..1_000_i64 {
                         let params = [SqliteValue::from(writer), SqliteValue::from(seq)];
+                        let mut retries = 0_u8;
                         loop {
                             match conn
                                 .execute_with_params(
@@ -626,9 +642,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .await
                             {
                                 Ok(_) => break,
-                                // A same-page conflict surfaces as a transient error.
-                                // Retry it (with backoff, in real code).
-                                Err(e) if e.is_transient() => continue,
+                                // Same-page conflicts (SQLITE_BUSY_SNAPSHOT) are transient.
+                                // Retry them, with backoff in real code.
+                                Err(e) if e.is_transient() && retries < 8 => retries += 1,
                                 Err(e) => return Err(e),
                             }
                         }
@@ -646,32 +662,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }`;
 
 export const timeTravelExample = `-- Time travel currently works on :memory: databases only.
--- Each commit gets a sequence number; CREATE TABLE below is commit 1.
-CREATE TABLE prices (item TEXT PRIMARY KEY, price REAL);
+-- Each commit gets a sequence number. Use explicit transactions:
+-- in v0.4.9, plain autocommit statements don't always get their own snapshot.
+CREATE TABLE prices (item TEXT PRIMARY KEY, price REAL);           -- commit 1
 
-INSERT INTO prices VALUES ('widget', 9.99);            -- commit 2
-UPDATE prices SET price = 14.99 WHERE item = 'widget';  -- commit 3
+BEGIN; INSERT INTO prices VALUES ('widget', 9.99); COMMIT;          -- commit 2
+BEGIN; UPDATE prices SET price = 14.99 WHERE item = 'widget'; COMMIT; -- commit 3
 
-SELECT price FROM prices;                                        -- 14.99
-SELECT price FROM prices FOR SYSTEM_TIME AS OF COMMITSEQ 2;      -- 9.99
+SELECT price FROM prices;                                    -- 14.99
+SELECT price FROM prices FOR SYSTEM_TIME AS OF COMMITSEQ 2;  -- 9.99
 
--- Asking for a commit that isn't in the snapshot ring is an error,
+-- A commit that isn't in the snapshot ring is an error,
 -- never a silent read of current data.
-SELECT price FROM prices FOR SYSTEM_TIME AS OF COMMITSEQ 999;    -- error`;
+SELECT price FROM prices FOR SYSTEM_TIME AS OF COMMITSEQ 999;  -- error`;
 
-export const pragmaExample = `-- Concurrency
-PRAGMA fsqlite.concurrent_mode;          -- ON: plain BEGIN acts as BEGIN CONCURRENT
+export const pragmaExample = `-- What mode am I in?
+PRAGMA fsqlite_concurrency;              -- e.g. begin_promotes_to | BEGIN CONCURRENT
+
+-- Concurrency
+PRAGMA fsqlite.concurrent_mode = OFF;    -- plain BEGIN goes back to one writer at a time
 PRAGMA fsqlite.serializable = OFF;       -- snapshot isolation instead of SSI
+PRAGMA fsqlite.retry_slo_ms = 50;        -- opt-in cap on busy-retry latency (off by default)
 
 -- Transaction telemetry (safe to query under load)
 PRAGMA fsqlite_txn_stats;                -- lifecycle counters
 PRAGMA fsqlite_transactions;             -- one row per active transaction
 PRAGMA fsqlite_txn_advisor;              -- long_txn, large_read_set, rollback_pressure, ...
 PRAGMA fsqlite_txn_timeline_json;        -- JSON for timeline tooling
+PRAGMA fsqlite.conflict_stats;           -- MVCC conflict counters
 
 -- Advisor thresholds
 PRAGMA fsqlite.txn_advisor_long_txn_ms = 5000;
 PRAGMA fsqlite.txn_advisor_large_read_ops = 256;
+
+-- WAL repair symbols per group on native file-backed connections (default 2, 0 = off)
+PRAGMA raptorq_repair_symbols = 4;
 
 -- Opt-in VDBE JIT
 PRAGMA fsqlite.jit_enable = 1;
@@ -790,8 +815,8 @@ export const buildStory: { title: string; body: ReactNode }[] = [
 
 export const performanceNote = {
   heading: "What about speed?",
-  body: "There is no current performance number to quote. The May 2026 benchmark matrix looked very good: FrankenSQLite was ahead of C SQLite on 79 of 93 scenarios, about 41x faster with 8 writers on separate tables, and behind by 1.05x to 1.37x on small single-threaded write loops. Then the storage stack moved to async I/O, and some of the older runs turned out to have missing provenance or asymmetric settings. Until a clean, reproducible matrix exists for the current code, the README makes no numeric claims, and neither does this site.",
-};
+  body: "There is no current performance number to quote. The May 2026 benchmark matrix looked very good: FrankenSQLite was ahead of C SQLite on 79 of 93 scenarios, with the biggest wins on multi-writer workloads, and behind on small single-threaded write loops, where every row paid MVCC bookkeeping that C SQLite skips. In July the project declared those results non-citable. The storage stack had moved to async I/O, and some of the older runs lacked provenance or compared asymmetric settings. Until a clean, reproducible matrix exists for the current code, the README makes no numeric claims, and neither does this site.",
+}
 
 // ---- 11. Screenshots / showcase gallery ------------------------------------
 
@@ -840,9 +865,9 @@ export const architectureLayers: ArchitectureLayer[] = [
     crates: ["fsqlite-vfs", "fsqlite-pager", "fsqlite-wal", "fsqlite-mvcc", "fsqlite-btree"],
     description: (
       <>
-        The VFS talks to the OS. The pager caches pages (S3-FIFO by default,{" "}
-        <FrankenJargon term="arc-cache">ARC</FrankenJargon> optional) and manages the rollback
-        journal. The <FrankenJargon term="wal" /> crate handles frames, checkpoints and the shared
+        The VFS talks to the OS. The pager caches pages with S3-FIFO eviction (an{" "}
+        <FrankenJargon term="arc-cache">ARC</FrankenJargon> policy is available through its API)
+        and manages the rollback journal. The <FrankenJargon term="wal" /> crate handles frames, checkpoints and the shared
         WAL index. <FrankenJargon term="mvcc" /> keeps per-page versions and runs SSI validation.
         The B-tree crate lays out cells, splits pages and walks cursors.
       </>
@@ -994,10 +1019,11 @@ export const faq: { question: string; answer: ReactNode }[] = [
     question: "Does RaptorQ repair my database automatically?",
     answer: (
       <>
-        Not yet. Native file-backed connections can generate{" "}
-        <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> into a{" "}
-        <code className="text-teal-300 text-xs">.wal-fec</code> sidecar, and the decoder exists, but
-        normal recovery doesn&apos;t read the sidecar. Keep your backups.
+        Not yet. File-backed connections generate{" "}
+        <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> for the WAL into a{" "}
+        <code className="text-teal-300 text-xs">-wal-fec</code> sidecar, and on Unix an explicit{" "}
+        <code className="text-teal-300 text-xs">repair_and_open</code> call can use them to rebuild
+        damaged WAL frames. Normal opens don&apos;t do that automatically. Keep your backups.
       </>
     ),
   },

@@ -2,14 +2,15 @@
 
 import { Cpu, Database, HardDrive, Layers, Shield, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
-import FrankenGlitch from "@/components/franken-glitch";
-import { FrankenJargon } from "@/components/franken-jargon";
-import FrankenMermaidDiagram from "@/components/frankenmermaid-diagram";
+import type { ReactNode } from "react";
 import {
   BUILD_STATUS,
   type BuildStatus,
   StatusBadge,
 } from "@/components/franken-elements";
+import FrankenGlitch from "@/components/franken-glitch";
+import { FrankenJargon } from "@/components/franken-jargon";
+import FrankenMermaidDiagram from "@/components/frankenmermaid-diagram";
 import { architectureLayers, crates, engineSnapshot } from "@/lib/content";
 
 const VersionChainExplorer = dynamic(() => import("@/components/viz/version-chain-explorer"), {
@@ -37,6 +38,13 @@ const MazurkiewiczTraces = dynamic(() => import("@/components/viz/mazurkiewicz-t
   ssr: false,
 });
 const StorageModes = dynamic(() => import("@/components/viz/storage-modes"), { ssr: false });
+const LearnedIndex = dynamic(() => import("@/components/viz/learned-index"), { ssr: false });
+const DatabaseCracking = dynamic(() => import("@/components/viz/database-cracking"), {
+  ssr: false,
+});
+const CoolingProtocol = dynamic(() => import("@/components/viz/cooling-protocol"), {
+  ssr: false,
+});
 
 const iconMap: Record<string, typeof Cpu> = {
   layers: Layers,
@@ -46,6 +54,80 @@ const iconMap: Record<string, typeof Cpu> = {
   zap: Zap,
   cpu: Cpu,
 };
+
+/** Where each topic on this page stands in the engine (see engineSnapshot). */
+const STATUS = {
+  mvcc: "live",
+  timeTravel: "partial",
+  writeCoordinator: "design",
+  walIndex: "live",
+  pageCache: "live",
+  varint: "live",
+  mergeLadder: "dormant",
+  raptorq: "partial",
+  ecs: "design",
+  xorDelta: "dormant",
+  storageModes: "partial",
+  learnedIndex: "dormant",
+  cracking: "dormant",
+  cooling: "dormant",
+  bocpd: "harness",
+  sheaf: "harness",
+  dpor: "harness",
+  eprocess: "harness",
+  conformal: "opt-in",
+} satisfies Record<string, BuildStatus>;
+
+const inlineCode = "text-teal-300 text-xs";
+
+function Topic({
+  id,
+  title,
+  status,
+  children,
+}: {
+  id: string;
+  title: string;
+  status?: BuildStatus;
+  children: ReactNode;
+}) {
+  return (
+    <section id={id} className="py-16 scroll-mt-28">
+      <div className="mx-auto max-w-4xl px-6">
+        <div className="flex flex-wrap items-center gap-4 mb-6">
+          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter">{title}</h2>
+          {status && <StatusBadge status={status} />}
+        </div>
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function Prose({ children, last = false }: { children: ReactNode; last?: boolean }) {
+  return (
+    <p
+      className={`text-lg text-slate-400 font-medium leading-relaxed max-w-3xl ${last ? "mb-8" : "mb-4"}`}
+    >
+      {children}
+    </p>
+  );
+}
+
+function GroupDivider({ eyebrow, title, children }: { eyebrow: string; title: string; children: ReactNode }) {
+  return (
+    <div className="mx-auto max-w-4xl px-6 pt-24 pb-4">
+      <div className="inline-flex items-center gap-3 mb-4">
+        <div className="h-px w-8 bg-teal-500/40" />
+        <span className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-500/80">
+          {eyebrow}
+        </span>
+      </div>
+      <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter mb-4">{title}</h2>
+      <p className="text-base text-slate-500 leading-relaxed max-w-3xl">{children}</p>
+    </div>
+  );
+}
 
 export default function ArchitecturePage() {
   return (
@@ -58,7 +140,7 @@ export default function ArchitecturePage() {
         <div className="relative z-10 mx-auto max-w-4xl px-6 text-left">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/5 text-[10px] font-black uppercase tracking-[0.3em] text-teal-500 mb-8">
             <Cpu className="h-3 w-3" />
-            System_Architecture
+            v{engineSnapshot.version} internals
           </div>
           <FrankenGlitch trigger="always" intensity="low">
             <h1 className="text-5xl md:text-7xl font-black text-white tracking-tighter leading-[0.9] mb-6">
@@ -70,11 +152,11 @@ export default function ArchitecturePage() {
             actually work, and which of the more ambitious ideas are running today versus still on
             the bench. Every section is labeled.
           </p>
-          <div className="mt-8 flex flex-wrap gap-2">
+          <div className="mt-8 flex flex-col gap-2">
             {(Object.keys(BUILD_STATUS) as BuildStatus[]).map((status) => (
-              <span key={status} className="inline-flex items-center gap-2 text-xs text-slate-500">
-                <StatusBadge status={status} />
-                <span className="hidden sm:inline">{BUILD_STATUS[status].hint}</span>
+              <span key={status} className="inline-flex items-center gap-3 text-xs text-slate-500">
+                <StatusBadge status={status} className="min-w-[8.5rem] justify-center" />
+                <span>{BUILD_STATUS[status].hint}</span>
               </span>
             ))}
           </div>
@@ -91,9 +173,13 @@ export default function ArchitecturePage() {
       {/* LAYER DESCRIPTIONS */}
       <section className="py-16">
         <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-12">
-            Architectural Layers
+          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
+            The Layers
           </h2>
+          <Prose last>
+            Each layer is one or more crates, and Cargo enforces the direction of dependencies. The
+            parser can&apos;t reach into the pager, and the B-tree can&apos;t call the planner.
+          </Prose>
 
           <div className="space-y-8">
             {architectureLayers.map((layer) => {
@@ -121,7 +207,7 @@ export default function ArchitecturePage() {
                       </div>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-400 leading-relaxed">{layer.description}</p>
+                  <div className="text-sm text-slate-400 leading-relaxed">{layer.description}</div>
                 </div>
               );
             })}
@@ -129,524 +215,381 @@ export default function ArchitecturePage() {
         </div>
       </section>
 
-      {/* MVCC DEEP DIVE */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-8">
-            MVCC Deep Dive
-          </h2>
+      {/* ================================================================
+          CONCURRENCY
+          ================================================================ */}
+      <GroupDivider eyebrow="Running today" title="Concurrency">
+        The part of FrankenSQLite that is both new and live: many writers in one process, with
+        serializable isolation.
+      </GroupDivider>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
-              <h3 className="text-lg font-black text-white mb-4">Snapshot Isolation</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                Each transaction captures a{" "}
-                <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> of the database at
-                its start time: a consistent, frozen view of all{" "}
-                <FrankenJargon term="btree">B-tree pages</FrankenJargon>. Writers create{" "}
-                <FrankenJargon term="cow">copy-on-write</FrankenJargon> versions of modified pages
-                and merge them at commit time via{" "}
-                <FrankenJargon term="fcw">First-Committer-Wins</FrankenJargon>. Readers are never
-                blocked and never see uncommitted data.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
-              <h3 className="text-lg font-black text-white mb-4">Concurrent Writers</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                C SQLite allows exactly one writer at a time. FrankenSQLite supports up to 8
-                concurrent writers operating on their own{" "}
-                <FrankenJargon term="snapshot-isolation">snapshots</FrankenJargon>. The{" "}
-                <FrankenJargon term="mvcc">MVCC</FrankenJargon> layer manages version chains for
-                each page, and background garbage collection reclaims versions that are no longer
-                visible to any active transaction, keeping memory bounded.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
-              <h3 className="text-lg font-black text-white mb-4">Time-Travel Queries</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> let you
-                inspect the database at any past commit point using{" "}
-                <code className="text-teal-300 text-xs">FOR SYSTEM_TIME AS OF</code> with a commit
-                sequence number or timestamp. Because{" "}
-                <FrankenJargon term="mvcc">MVCC</FrankenJargon> version chains preserve old page
-                states, the engine can reconstruct any historical{" "}
-                <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> on demand. No
-                forks, no replicas, no manual backup rotation required.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
-              <h3 className="text-lg font-black text-white mb-4">Version Cleanup</h3>
-              <p className="text-sm text-slate-400 leading-relaxed">
-                A background vacuum reclaims space from{" "}
-                <FrankenJargon term="mvcc">MVCC</FrankenJargon> versions no longer visible to any
-                active transaction.{" "}
-                <FrankenJargon term="bocpd">BOCPD regime detection</FrankenJargon> monitors
-                throughput patterns in real time and auto-tunes garbage collection thresholds when
-                the workload shifts between OLTP bursts, bulk loads, and idle periods. No manual
-                tuning required.
-              </p>
-            </div>
+      <Topic id="mvcc" title="MVCC, Page by Page" status={STATUS.mvcc}>
+        <div className="grid gap-6 md:grid-cols-2 mb-12">
+          <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
+            <h3 className="text-lg font-black text-white mb-4">Snapshots</h3>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Every transaction reads from a{" "}
+              <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>, identified by the
+              highest commit sequence number it may see. Writers produce new page versions instead
+              of overwriting ones a reader might be using, so readers never block and never see a
+              half-finished write.
+            </p>
           </div>
-
-          <div className="mt-12">
-            <VersionChainExplorer />
+          <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
+            <h3 className="text-lg font-black text-white mb-4">Concurrent writers</h3>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Plain <code className={inlineCode}>BEGIN</code> is promoted to{" "}
+              <code className={inlineCode}>BEGIN CONCURRENT</code>. There is no fixed writer cap;
+              open one connection per thread. A writer locks a page the first time it writes it,
+              and if another transaction holds it, the call fails fast instead of waiting. No
+              waiting means no wait-for cycles, so page locks can&apos;t deadlock.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
+            <h3 className="text-lg font-black text-white mb-4">Commit</h3>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Statement execution and private page changes overlap freely. Commit takes a short
+              registry guard, runs <FrankenJargon term="fcw">first-committer-wins</FrankenJargon>{" "}
+              and <FrankenJargon term="ssi">SSI</FrankenJargon> validation, writes through the
+              pager, and publishes the result to the commit index. The loser of a same-page race
+              gets <code className={inlineCode}>SQLITE_BUSY_SNAPSHOT</code>.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8">
+            <h3 className="text-lg font-black text-white mb-4">Cleaning up versions</h3>
+            <p className="text-sm text-slate-400 leading-relaxed">
+              Versions older than the oldest snapshot anyone still holds can go. The engine keeps
+              the newest version of each page at or below that horizon, retires the rest, and frees
+              them in batches with epoch-based reclamation once no reader can be looking at them.
+            </p>
           </div>
         </div>
-      </section>
 
-      {/* WRITE COORDINATOR */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Single-Threaded Write Coordinator
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            Multi-threaded disk I/O typically requires complex locking protocols and two-phase
-            commit. FrankenSQLite takes a different approach: slow{" "}
-            <FrankenJargon term="btree">B-tree</FrankenJargon> modifications run in parallel across
-            many worker threads, but the actual commit validation and{" "}
-            <FrankenJargon term="wal">WAL</FrankenJargon> appends are funneled through a single,
-            lock-free <FrankenJargon term="write-coordinator">Write Coordinator</FrankenJargon>{" "}
-            pipeline. This maximizes sequential SSD write bandwidth while avoiding the contention
-            that plagues mutex-based commit paths.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            The visualization below shows worker threads producing{" "}
-            <FrankenJargon term="mvcc">MVCC</FrankenJargon> page diffs in parallel, then feeding
-            them through the coordinator&apos;s validation,{" "}
-            <FrankenJargon term="wal">WAL</FrankenJargon> append, and flush stages. Press{" "}
-            <strong>Run Pipeline</strong> to watch the pipeline in action.
-          </p>
-
-          <WriteCoordinator />
-        </div>
-      </section>
-
-      {/* THE SAFE MERGE LADDER */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            The Safe Merge Ladder
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            When two transactions modify the same{" "}
-            <FrankenJargon term="btree">B-tree page</FrankenJargon>, most databases abort one
-            immediately. FrankenSQLite&apos;s{" "}
-            <FrankenJargon term="safe-merge-ladder">Safe Merge Ladder</FrankenJargon> tries four
-            progressively stronger resolution strategies before resorting to abort. Each rung
-            handles a wider class of conflicts than the one above it. The conflict ladder
-            visualization below lets you walk through three scenarios, from non-conflicting to true
-            conflict, and see exactly which rung resolves each case.
-          </p>
-
-          <div className="grid gap-4 sm:grid-cols-2 mb-12">
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10 text-green-400 text-sm font-black">
-                  1
-                </span>
-                <h3 className="text-sm font-black text-white">Intent Replay</h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                <FrankenJargon term="deterministic-rebase">Deterministic rebase</FrankenJargon>:
-                replay the intent log against the updated snapshot. Works when all expressions are
-                deterministic (no RANDOM, no CURRENT_TIME).
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-yellow-500/10 text-yellow-400 text-sm font-black">
-                  2
-                </span>
-                <h3 className="text-sm font-black text-white">
-                  <FrankenJargon term="foata">FOATA Merge</FrankenJargon>
-                </h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Canonical reordering of independent operations. If two writes don&apos;t interfere,
-                they can be merged into a single consistent result.
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10 text-amber-400 text-sm font-black">
-                  3
-                </span>
-                <h3 className="text-sm font-black text-white">
-                  <FrankenJargon term="xor-delta">XOR Delta Merge</FrankenJargon>
-                </h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Byte-level diff combination. If the two deltas don&apos;t overlap at the byte level,
-                their XOR produces a valid merged page.
-              </p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-400 text-sm font-black">
-                  4
-                </span>
-                <h3 className="text-sm font-black text-white">Abort</h3>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Only as a last resort. The losing transaction is rolled back and retried. This is
-                the only strategy that matches traditional database behavior.
-              </p>
-            </div>
+        <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.03] p-6 mb-12">
+          <div className="flex flex-wrap items-center gap-3 mb-2">
+            <h3 className="text-base font-black text-white">Time-travel queries</h3>
+            <StatusBadge status={STATUS.timeTravel} />
           </div>
-
-          <ConflictLadder />
+          <p className="text-sm text-slate-400 leading-relaxed">
+            <code className={inlineCode}>SELECT ... FOR SYSTEM_TIME AS OF COMMITSEQ n</code> (or a
+            timestamp) works on <code className={inlineCode}>:memory:</code> databases, which keep
+            a ring of up to 256 snapshots taken at each commit. File-backed databases return an
+            explicit error rather than current data. A <code className={inlineCode}>.fsqlite-history</code>{" "}
+            sidecar for file-backed history is designed but not built.
+          </p>
         </div>
-      </section>
 
-      {/* RAPTORQ DURABILITY */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-8">
-            RaptorQ Self-Healing
-          </h2>
+        <VersionChainExplorer />
+      </Topic>
 
-          <div className="rounded-2xl border border-white/5 bg-white/[0.02] p-8 md:p-12 mb-12">
-            <div className="grid gap-8 md:grid-cols-3">
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-teal-400 mb-3">
-                  Encode
-                </h3>
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  Every time a <FrankenJargon term="btree">B-tree page</FrankenJargon> is written,{" "}
-                  <FrankenJargon term="raptorq">RaptorQ fountain codes</FrankenJargon> generate
-                  redundant <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> over{" "}
-                  <FrankenJargon term="gf256">GF(256)</FrankenJargon> arithmetic. These symbols are
-                  stored sequentially alongside the data in the{" "}
-                  <FrankenJargon term="wal">WAL</FrankenJargon> with configurable overhead
-                  (typically 20%).
-                </p>
-              </div>
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-teal-400 mb-3">
-                  Detect
-                </h3>
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  On every page read, BLAKE3 checksums verify integrity. If corruption is detected,
-                  whether from bit rot, disk controller errors, or cosmic rays, the recovery
-                  pipeline activates automatically with no operator intervention.
-                </p>
-              </div>
-              <div>
-                <h3 className="text-sm font-black uppercase tracking-widest text-teal-400 mb-3">
-                  Recover
-                </h3>
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  <FrankenJargon term="inactivation-decoding">Inactivation decoding</FrankenJargon>{" "}
-                  reconstructs corrupted data from the surviving{" "}
-                  <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>. The peeling
-                  decoder handles most cases; <FrankenJargon term="gf256">GF(256)</FrankenJargon>{" "}
-                  Gaussian elimination finishes the rest. Recovery requires just 2 extra symbols
-                  beyond the source block count. Click pages below to simulate corruption and watch
-                  the engine rebuild them.
-                </p>
-              </div>
+      <Topic id="write-path" title="The Commit Path" status={STATUS.writeCoordinator}>
+        <Prose>
+          The design calls for a dedicated{" "}
+          <FrankenJargon term="write-coordinator">write coordinator</FrankenJargon>: connections
+          submit validated commits over a channel, and one task batches them into the WAL with a
+          two-fsync sequence. That is not how the live engine works yet. Today each connection runs
+          its own commit inside the registry guard described above, and the coordinator service
+          only exists as lifecycle scaffolding.
+        </Prose>
+        <Prose last>
+          The visualization below shows the planned pipeline. Press <strong>Run Pipeline</strong>{" "}
+          to watch workers hand off page diffs to the coordinator&apos;s validate, append and flush
+          stages.
+        </Prose>
+        <WriteCoordinator />
+      </Topic>
+
+      <Topic id="wal-index" title="The WAL Index" status={STATUS.walIndex}>
+        <Prose>
+          With a write-ahead log, the newest copy of a page might be in the WAL rather than the main
+          file. SQLite keeps a hash table in the <code>-shm</code> shared-memory file that maps page
+          numbers to WAL frames, so a reader can find the right frame without scanning the log.
+        </Prose>
+        <Prose last>
+          FrankenSQLite reads and writes that structure in SQLite&apos;s own format, which is what
+          lets it share a live WAL with stock SQLite readers. Type a page number below to watch the
+          lookup probe the table.
+        </Prose>
+        <WalIndexShm />
+      </Topic>
+
+      <Topic id="page-cache" title="The Page Cache" status={STATUS.pageCache}>
+        <Prose>
+          A plain LRU cache does badly on databases: one big table scan pushes out the pages
+          everything else keeps using. FrankenSQLite&apos;s pager uses S3-FIFO by default, which
+          admits new pages to a small probationary queue so one-off scan pages leave quickly.
+        </Prose>
+        <Prose last>
+          An <FrankenJargon term="arc-cache">ARC</FrankenJargon> policy is also implemented and can
+          be selected through the pager&apos;s API (there is no PRAGMA for it). ARC balances a recency list against a frequency list and keeps
+          &ldquo;ghost&rdquo; entries for recently evicted pages to learn which side deserves more
+          room. The demo below shows ARC&apos;s four lists at work.
+        </Prose>
+        <ArcEviction />
+      </Topic>
+
+      <Topic id="varint" title="Byte-for-Byte File Format" status={STATUS.varint}>
+        <Prose>
+          Compatibility comes down to details like this one. SQLite stores rowids, record header
+          sizes and serial types as variable-length integers: one byte for small values, up to nine
+          for the largest. FrankenSQLite encodes and decodes them exactly the same way, along with
+          the rest of the record and B-tree page format, so files move between it and stock{" "}
+          <code>sqlite3</code> without conversion.
+        </Prose>
+        <Prose last>
+          Drag the slider below to see how integers of different sizes map to byte widths.
+        </Prose>
+        <VarintEncoding />
+      </Topic>
+
+      {/* ================================================================
+          ON THE BENCH
+          ================================================================ */}
+      <GroupDivider eyebrow="On the bench" title="Built, Partial, or Designed">
+        These are the ideas the project is known for. Some have working code that isn&apos;t
+        connected to the default runtime yet; some are partly wired; some are designs with pieces
+        landing. Each section says which.
+      </GroupDivider>
+
+      <Topic id="merge-ladder" title="The Safe Merge Ladder" status={STATUS.mergeLadder}>
+        <Prose>
+          Page-level MVCC has one built-in weakness. Two transactions that insert different rows
+          into the same leaf page conflict, even though their changes don&apos;t overlap in any
+          meaningful way. Today the second committer simply retries. The merge ladder is the
+          planned way to let both commit when that is provably safe.
+        </Prose>
+        <Prose last>
+          The code is in <code>fsqlite-mvcc</code> and tested, but the live commit path doesn&apos;t
+          call it and the intent log isn&apos;t recorded during writes yet. Tracked as bd-3d5y3 and
+          bd-p4dcv.
+        </Prose>
+
+        <div className="grid gap-4 sm:grid-cols-3 mb-12">
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-green-500/10 text-green-400 text-sm font-black">
+                1
+              </span>
+              <h3 className="text-sm font-black text-white">Rebase the intent</h3>
             </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Each writer logs what it meant to do at the B-tree level (&ldquo;insert rowid
+              42&rdquo;). On conflict, <FrankenJargon term="deterministic-rebase">replay</FrankenJargon>{" "}
+              that log against the winner&apos;s page. If the B-tree invariants and constraints
+              still hold, commit.
+            </p>
           </div>
-
-          <RaptorQHealing />
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-yellow-500/10 text-yellow-400 text-sm font-black">
+                2
+              </span>
+              <h3 className="text-sm font-black text-white">Structured patch</h3>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              If the two transactions touched different cells (compared by cell key, not by byte
+              range), merge the cell changes, serialize any page-header changes, and re-check the
+              page.
+            </p>
+          </div>
+          <div className="rounded-xl border border-white/5 bg-white/[0.02] p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-500/10 text-red-400 text-sm font-black">
+                3
+              </span>
+              <h3 className="text-sm font-black text-white">Abort and retry</h3>
+            </div>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              A real conflict. The loser gets <code className={inlineCode}>SQLITE_BUSY_SNAPSHOT</code>
+              . This is the only rung the live engine uses today.
+            </p>
+          </div>
         </div>
-      </section>
 
-      {/* ERASURE-CODED STREAMS */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Erasure-Coded Streams
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            The <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon> format is
-            FrankenSQLite&apos;s native storage mode. It replaces the traditional in-place update
-            model with an append-only sequence of{" "}
-            <FrankenJargon term="content-addressed">content-addressed</FrankenJargon> page versions,
-            each protected by <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>{" "}
-            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            The <FrankenJargon term="systematic-layout">systematic layout</FrankenJargon> places raw
-            source data first in every block, so normal reads are zero-copy with no decoding
-            overhead. Decoding activates only when corruption is detected. Step through the
-            visualization below to see how a raw 4 KB page is partitioned into source symbols,
-            encoded with <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>, and then recovered
-            after simulated corruption.
-          </p>
+        <p className="text-sm text-slate-500 leading-relaxed max-w-3xl mb-8">
+          What&apos;s deliberately missing: merging raw byte ranges. Two writes can touch disjoint
+          bytes and still collide, for example when one transaction moves a cell and the other
+          edits the cell&apos;s old location. A byte-level merge would silently drop the second
+          update, so the design forbids it for B-tree, overflow, freelist and pointer-map pages.
+        </p>
+        <ConflictLadder />
+      </Topic>
 
-          <EcsFormat />
-        </div>
-      </section>
+      <Topic id="raptorq" title="RaptorQ Repair Symbols" status={STATUS.raptorq}>
+        <Prose>
+          <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> (RFC 6330) is a fountain code. It
+          splits data into K source symbols and can generate as many{" "}
+          <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> as you like; almost any
+          K symbols, plus a small margin, are enough to rebuild the original. The math happens in{" "}
+          <FrankenJargon term="gf256">GF(256)</FrankenJargon>: a fast peeling decoder handles most
+          symbols and{" "}
+          <FrankenJargon term="inactivation-decoding">Gaussian elimination</FrankenJargon> finishes
+          the rest.
+        </Prose>
+        <Prose last>
+          In the engine today, file-backed connections encode durable WAL ranges into a{" "}
+          <code>-wal-fec</code> sidecar in the background after each WAL sync (
+          <code>PRAGMA raptorq_repair_symbols</code>, default 2, sets the budget). On Unix, an
+          explicit <code>repair_and_open</code> call can rebuild damaged frames from it and write a
+          verified backup. Ordinary opens don&apos;t do that yet, so default recovery still behaves
+          like SQLite&apos;s. Click pages in the demo to corrupt them and see how
+          many losses a given amount of repair data can absorb.
+        </Prose>
+        <RaptorQHealing />
+      </Topic>
 
-      {/* COMPACT VERSION STORAGE */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Compact Version Storage
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            <FrankenJargon term="mvcc">MVCC</FrankenJargon> version chains grow with every write.
-            Storing a full 4 KB copy of a <FrankenJargon term="btree">B-tree page</FrankenJargon>{" "}
-            for every single transaction would bloat the database rapidly.{" "}
-            <FrankenJargon term="xor-delta">XOR deltas</FrankenJargon> compress these chains by
-            storing only the bytes that actually changed between successive page versions.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            When less than 25% of a page changes (the common case for point updates), the engine
-            stores a sparse delta instead of a full copy, saving up to 93% of storage per version.
-            When a page changes substantially, a full snapshot is stored and the delta chain resets.
-            Step through below to see the XOR computation, the sparse delta, and the threshold-based
-            cutoff in action.
-          </p>
+      <Topic id="ecs" title="Erasure-Coded Streams" status={STATUS.ecs}>
+        <Prose>
+          Native mode replaces the mutable database file with an append-only stream of commit
+          capsules. Each capsule holds a commit&apos;s page changes and the evidence its validation
+          used, and is stored as RaptorQ symbols. A commit counts once its marker, which points to
+          the previous marker, is durable. A standard <code>.db</code> can still be exported for
+          compatibility.
+        </Prose>
+        <Prose last>
+          Because the code is <FrankenJargon term="systematic-layout">systematic</FrankenJargon>,
+          the original bytes are stored unchanged and ordinary reads don&apos;t decode anything.
+          This is design plus partial implementation: native WAL publication, recovery and page
+          groups are landing on <code>main</code>, but there is no stable switch for it yet. Step
+          through below to see a page split into symbols, encoded, and recovered.
+        </Prose>
+        <EcsFormat />
+      </Topic>
 
-          <XorDeltaChain />
-        </div>
-      </section>
+      <Topic id="storage-modes" title="Two Storage Modes" status={STATUS.storageModes}>
+        <Prose last>
+          Compatibility mode, on standard SQLite files, is what runs today and what everything else
+          on this site assumes. Native mode is where the project is heading. The comparison below
+          follows one write through each to show where they diverge.
+        </Prose>
+        <StorageModes />
+      </Topic>
 
-      {/* ARC CACHE */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Adaptive Replacement Cache
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            A single <code>SELECT *</code> table scan can evict the entire LRU working set, forcing
-            the buffer pool to re-read frequently-accessed pages from disk. FrankenSQLite replaces
-            LRU with an <FrankenJargon term="mvcc">MVCC</FrankenJargon>-aware{" "}
-            <FrankenJargon term="arc-cache">Adaptive Replacement Cache (ARC)</FrankenJargon>: four
-            lists (T1 for recent, T2 for frequent, B1 and B2 as ghost lists tracking recently
-            evicted metadata) that self-tune based on access patterns.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            On top of ARC, the{" "}
-            <FrankenJargon term="cooling-protocol">Cooling Protocol</FrankenJargon> adds a grace
-            period: pages must survive an entire cooling cycle without being re-accessed before they
-            become eviction candidates. Hot <FrankenJargon term="btree">B-tree</FrankenJargon>{" "}
-            interior nodes use{" "}
-            <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> to resolve
-            in-memory addresses directly, bypassing the cache lookup entirely. The result:
-            sequential scans no longer destroy your working set. Try accessing pages below to see
-            how the four lists interact and how ghost lists influence future promotion decisions.
-          </p>
+      <Topic id="xor-delta" title="Compact Version Storage" status={STATUS.xorDelta}>
+        <Prose last>
+          Storing a full page copy for every version gets expensive when most writes change a few
+          bytes. Storing the XOR of two consecutive versions keeps only what changed, and a full
+          snapshot can reset the chain when a page changes a lot. Note that this is about storing
+          versions compactly, which is safe; it is not the same thing as merging two
+          writers&apos; changes byte by byte, which the design forbids.
+        </Prose>
+        <XorDeltaChain />
+      </Topic>
 
-          <ArcEviction />
-        </div>
-      </section>
+      {/* ================================================================
+          RESEARCH CODE
+          ================================================================ */}
+      <GroupDivider eyebrow="Research" title="Ideas in the Tree">
+        Techniques from the database research literature that have implementations in the
+        workspace but don&apos;t sit on the query or cache path of the default runtime.
+      </GroupDivider>
 
-      {/* VARINT ENCODING */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Varint Encoding
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            SQLite compresses row IDs, record header sizes, and serial types using{" "}
-            <FrankenJargon term="varint">Varint Encoding</FrankenJargon>: a Huffman-optimal,
-            prefix-free code where small integers (the common case) use just 1 byte and the largest
-            use 9. This saves substantial space across millions of records because most integers in
-            a database are small.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            FrankenSQLite replicates this encoding exactly, byte for byte, maintaining full
-            read/write compatibility with existing <code>.sqlite3</code> files. Drag the slider
-            below to watch how integers of different magnitudes map to different byte widths, and
-            compare the varint representation against a fixed 8-byte layout.
-          </p>
+      <Topic id="learned-index" title="Learned Indexes" status={STATUS.learnedIndex}>
+        <Prose last>
+          A B-tree finds a key by walking from the root to a leaf, three or four page hops for a
+          typical table. A learned index fits a small piecewise-linear model to the sorted keys and
+          predicts where a key should be, then searches a bounded window around the guess. It works
+          best on large, read-mostly data with a smooth key distribution.
+        </Prose>
+        <LearnedIndex />
+      </Topic>
 
-          <VarintEncoding />
-        </div>
-      </section>
+      <Topic id="database-cracking" title="Database Cracking" status={STATUS.cracking}>
+        <Prose last>
+          Cracking builds an index as a side effect of queries. Each range query partitions the
+          column around its bounds, so the data gradually sorts itself along the ranges people
+          actually ask for. Run the three queries below and watch the array reorganize.
+        </Prose>
+        <DatabaseCracking />
+      </Topic>
 
-      {/* SHEAF THEORY */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Sheaf-Theoretic Consistency
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            In multi-process and high-concurrency settings, pairwise consistency checks miss a
-            dangerous class of bugs: cases where no two transactions disagree with each other, yet
-            the global state is inconsistent. Standard testing misses these because it only compares
-            pairs.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            FrankenSQLite&apos;s conformance harness uses a{" "}
-            <FrankenJargon term="sheaf-theoretic">sheaf-theoretic consistency model</FrankenJargon>{" "}
-            to detect exactly these anomalies. Each transaction&apos;s local view (its
-            &ldquo;section&rdquo; in the sheaf) must be globally compatible; if the sections cannot
-            be glued into a single consistent state, the harness flags the violation. Step through
-            below to see three transaction views tested for global consistency.
-          </p>
+      <Topic id="cooling-protocol" title="The Cooling Protocol" status={STATUS.cooling}>
+        <Prose last>
+          An idea borrowed from LeanStore: instead of evicting the least recently used page
+          directly, pages pass through a &ldquo;cooling&rdquo; stage first, and a page that gets
+          touched again while cooling goes back to hot. Click pages below to re-heat them, then run
+          a background scan to watch the cycle.
+        </Prose>
+        <CoolingProtocol />
+      </Topic>
 
-          <SheafConsistency />
-        </div>
-      </section>
+      <Topic id="bocpd" title="Detecting Workload Shifts" status={STATUS.bocpd}>
+        <Prose last>
+          <FrankenJargon term="bocpd">Bayesian online change-point detection</FrankenJargon> keeps a
+          running estimate of how long the current workload &ldquo;regime&rdquo; has lasted and
+          notices when the throughput pattern changes, for example from steady OLTP to a bulk load.
+          In FrankenSQLite it is an advisory component used by the harness; it doesn&apos;t tune
+          the engine or gate correctness. Start the
+          telemetry below and switch regimes to watch the detector respond.
+        </Prose>
+        <BocpdRegime />
+      </Topic>
 
-      {/* BOCPD REGIME DETECTION */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Adaptive Workload Regimes
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            Static thresholds for <FrankenJargon term="mvcc">MVCC</FrankenJargon> garbage collection
-            and page compaction are inevitably wrong for at least one workload pattern. A threshold
-            tuned for OLTP bursts wastes resources during idle periods; one tuned for bulk loads
-            stalls under point-query traffic.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            FrankenSQLite uses{" "}
-            <FrankenJargon term="bocpd">
-              Bayesian Online Change-Point Detection (BOCPD)
-            </FrankenJargon>{" "}
-            to detect workload regime shifts in real time. The algorithm maintains a running
-            posterior over &ldquo;run length&rdquo; (how long the current regime has lasted) and
-            triggers re-tuning when it detects a statistically significant shift. Start the live
-            telemetry below, then switch between workload regimes to watch the detector identify
-            transitions between OLTP, bulk-load, and idle throughput patterns.
-          </p>
+      {/* ================================================================
+          VERIFICATION
+          ================================================================ */}
+      <GroupDivider eyebrow="Verification" title="How It Gets Checked">
+        Most of the project&apos;s effort goes into proving the engine behaves like SQLite and that
+        concurrency doesn&apos;t corrupt anything. These techniques live in the test harness, not in
+        the database you link against.
+      </GroupDivider>
 
-          <BocpdRegime />
-        </div>
-      </section>
+      <Topic id="dpor" title="Exploring Thread Schedules" status={STATUS.dpor}>
+        <Prose last>
+          Random stress tests only sample the possible orderings of concurrent operations.{" "}
+          <FrankenJargon term="mazurkiewicz-trace">Mazurkiewicz traces</FrankenJargon> group
+          orderings that differ only in the order of independent operations, and{" "}
+          <FrankenJargon term="dpor">dynamic partial-order reduction</FrankenJargon> runs one
+          representative from each group. Within a bounded test, that covers every distinct
+          outcome without running every interleaving. Step through below to see three orderings
+          collapse into two classes.
+        </Prose>
+        <MazurkiewiczTraces />
+      </Topic>
 
-      {/* EXHAUSTIVE VERIFICATION */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Exhaustive Concurrency Verification
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            Testing concurrent code with random fuzzing leaves you hoping you hit the right thread
-            schedule. With N threads and M operations each, the number of possible interleavings
-            grows factorially. Random sampling covers a vanishing fraction of the space.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            FrankenSQLite uses{" "}
-            <FrankenJargon term="mazurkiewicz-trace">Mazurkiewicz traces</FrankenJargon> to group
-            thread schedules that differ only in the ordering of independent (non-conflicting)
-            operations into equivalence classes. Then{" "}
-            <FrankenJargon term="dpor">Dynamic Partial-Order Reduction (DPOR)</FrankenJargon> tests
-            exactly one schedule per class. This turns an infinite state space into a finite,
-            exhaustively provable set. Step through below to see how three raw interleavings
-            collapse into two equivalence classes, and why testing one representative from each
-            class is sufficient.
-          </p>
+      <Topic id="eprocess" title="Anytime-Valid Monitoring" status={STATUS.eprocess}>
+        <Prose last>
+          If you check an invariant after every operation with an ordinary statistical test, you
+          will eventually get a false alarm just by checking so often.{" "}
+          <FrankenJargon term="e-process">E-processes</FrankenJargon> are built to be checked
+          continuously while keeping the false-alarm rate under a fixed bound, which makes them a
+          good fit for long concurrency soak tests. The harness uses them to watch the MVCC
+          invariants. The engine also has a research-grade, opt-in mode (
+          <code>PRAGMA fsqlite.write_merge = LAB_UNSAFE</code>) that lets an e-process gate skip
+          some SSI checks; the default never does. Run the monitor below, then inject a violation.
+        </Prose>
+        <EprocessMonitor />
+      </Topic>
 
-          <MazurkiewiczTraces />
-        </div>
-      </section>
+      <Topic id="sheaf" title="Gluing Local Views" status={STATUS.sheaf}>
+        <Prose last>
+          Some concurrency bugs only show up globally: every pair of transactions looks consistent,
+          but there&apos;s no single database state all of them could have seen. A{" "}
+          <FrankenJargon term="sheaf-theoretic">sheaf-style check</FrankenJargon> treats each
+          transaction&apos;s view as a local section and asks whether they glue into one global
+          state. Step through three views below.
+        </Prose>
+        <SheafConsistency />
+      </Topic>
 
-      {/* E-PROCESS MONITORING */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Anytime-Valid Invariant Monitoring
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            Traditional unit tests run once and stop. If a concurrency bug only manifests after 10
-            billion operations, a fixed test suite will never find it. Running more tests increases
-            false-positive rates unless you apply Bonferroni correction, which reduces statistical
-            power.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            FrankenSQLite continuously monitors runtime invariants (like strict <code>TxnId</code>{" "}
-            monotonicity and <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>{" "}
-            ordering) using <FrankenJargon term="e-process">e-processes</FrankenJargon>. Because
-            they are mathematically anytime-valid martingales, they can run for billions of
-            operations without false-positive inflation, halting the engine the millisecond an
-            invariant violation occurs. Press <strong>Run E-Process Monitor</strong> below to watch
-            the e-value accumulate under normal operations, then see it spike through the rejection
-            threshold when a violation is injected.
-          </p>
-
-          <EprocessMonitor />
-        </div>
-      </section>
-
-      {/* CONFORMAL CALIBRATION */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Conformal Performance Bounds
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            Benchmark latency distributions have heavy tails, bimodal modes, and regime-dependent
-            shapes. Reporting mean ± standard deviation assumes normality, which is almost never
-            true. The result: regressions hide inside wide error bars, and improvements look
-            significant when they are just noise.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            FrankenSQLite uses{" "}
-            <FrankenJargon term="conformal-prediction">conformal prediction</FrankenJargon> to
-            establish rigorous, distribution-free confidence intervals around performance metrics.
-            These bounds hold regardless of the underlying distribution, catching regressions that
-            parametric methods miss. The visualization below shows how conformal intervals adapt to
-            the actual data shape, tightening in stable regimes and widening during transitions.
-          </p>
-
-          <ConformalCalibration />
-        </div>
-      </section>
-
-      {/* LOCK-FREE WAL INDEX */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Lock-Free WAL Index
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            When <FrankenJargon term="mvcc">MVCC</FrankenJargon> writers continuously append new
-            page versions to the <FrankenJargon term="wal">WAL</FrankenJargon>, readers need a fast
-            way to find the most recent version of any page without blocking writers. A sequential
-            scan of the WAL would be O(N); a tree-based index would require locks on every update.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            FrankenSQLite solves this with a memory-mapped{" "}
-            <FrankenJargon term="wal-index">WAL Index</FrankenJargon> stored in the{" "}
-            <code>-shm</code> shared memory file. It is a flat hash table using open addressing and
-            linear probing with a load factor strictly capped at 0.5. Lookups resolve in O(1)
-            expected time without a single lock acquisition or system call. Type a page number below
-            and watch the hash function probe the table to find the WAL frame offset.
-          </p>
-
-          <WalIndexShm />
-        </div>
-      </section>
-
-      {/* STORAGE MODES */}
-      <section className="py-16">
-        <div className="mx-auto max-w-4xl px-6">
-          <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-4">
-            Storage Modes
-          </h2>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-4 max-w-3xl">
-            FrankenSQLite supports two storage modes. Compatibility mode reads and writes standard{" "}
-            <code>.sqlite3</code> files, so you can drop FrankenSQLite into an existing application
-            with zero migration effort. Your data stays in the format every SQLite tool already
-            understands.
-          </p>
-          <p className="text-lg text-slate-400 font-medium leading-relaxed mb-8 max-w-3xl">
-            Native <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon> mode trades
-            additional disk space for built-in <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>{" "}
-            self-healing, <FrankenJargon term="content-addressed">content-addressed</FrankenJargon>{" "}
-            page versions, and append-only crash safety. Step through the comparison below to see
-            how the same write operation flows through each mode and where they diverge.
-          </p>
-
-          <StorageModes />
-        </div>
-      </section>
+      <Topic id="conformal" title="Distribution-Free Bounds" status={STATUS.conformal}>
+        <Prose last>
+          Latencies are skewed and multi-modal, so mean plus or minus a standard deviation
+          misleads. <FrankenJargon term="conformal-prediction">Conformal prediction</FrankenJargon>{" "}
+          produces intervals that hold without assuming a distribution. The engine uses it in one
+          place today, and only if you ask: <code>PRAGMA fsqlite.retry_slo_ms</code> caps how long
+          busy retries may take, calibrated from recent retry latencies. Using it as a
+          performance release gate is still a design target.
+        </Prose>
+        <ConformalCalibration />
+      </Topic>
 
       {/* FULL CRATE LIST */}
       <section className="py-16 pb-32">
         <div className="mx-auto max-w-6xl px-6">
           <h2 className="text-3xl md:text-4xl font-black text-white tracking-tighter mb-12">
-            All 26 Crates
+            All {crates.length} Crates
           </h2>
-
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {crates.map((crate) => (
               <div

@@ -83,19 +83,7 @@ const BTreePageExplorer = dynamic(() => import("@/components/viz/btree-page-expl
   ssr: false,
   loading: () => <VizSkeleton />,
 });
-const LearnedIndex = dynamic(() => import("@/components/viz/learned-index"), {
-  ssr: false,
-  loading: () => <VizSkeleton />,
-});
-const DatabaseCracking = dynamic(() => import("@/components/viz/database-cracking"), {
-  ssr: false,
-  loading: () => <VizSkeleton />,
-});
 const WalLanes = dynamic(() => import("@/components/viz/wal-lanes"), {
-  ssr: false,
-  loading: () => <VizSkeleton />,
-});
-const CoolingProtocol = dynamic(() => import("@/components/viz/cooling-protocol"), {
   ssr: false,
   loading: () => <VizSkeleton />,
 });
@@ -446,206 +434,6 @@ export default function HomePage() {
       </SectionShell>
 
       {/* ================================================================
-          3C. ADVANCED INDEXING — Learned Indexes
-          ================================================================ */}
-      <SectionShell
-        id="learned-index"
-        icon="zap"
-        eyebrow="Machine Learning"
-        title="Learned Indexes"
-        kicker={
-          <>
-            Every <FrankenJargon term="btree">B-tree</FrankenJargon> lookup costs O(log N) random
-            memory jumps, root to internal to leaf, one potential cache miss per level. On a
-            million-row table, that means roughly 20 pointer chases per point query.
-            <br />
-            <br />
-            FrankenSQLite can replace this traversal with a{" "}
-            <FrankenJargon term="learned-index">Learned Index</FrankenJargon>: a compact
-            mathematical model trained on the actual key distribution. It predicts where a key lives
-            on disk in O(1) time, one multiplication instead of twenty random reads. The model
-            retrains incrementally as data changes, so it stays accurate without manual
-            intervention. Click a query button below to see the model predict a key&apos;s location,
-            then compare the result against a traditional tree walk.
-          </>
-        }
-      >
-        <DeferredViz>
-          <LearnedIndex />
-        </DeferredViz>
-      </SectionShell>
-
-      {/* ================================================================
-          3D. ADVANCED INDEXING — Database Cracking
-          ================================================================ */}
-      <SectionShell
-        id="database-cracking"
-        icon="activity"
-        eyebrow="Adaptive Layout"
-        title="Database Cracking"
-        kicker={
-          <>
-            Traditional indexes require upfront decisions: which columns, what order, at what
-            write-amplification cost. Get it wrong and queries stay slow. Get it right and you pay
-            the cost of building the index before the first query benefits.
-            <br />
-            <br />
-            <FrankenJargon term="database-cracking">Database Cracking</FrankenJargon> inverts this
-            entirely. The first range query on a column physically partitions the data in-place as a
-            side effect of answering the query. The second query refines that partition. Each
-            subsequent query tightens the physical layout toward exactly the access pattern your
-            application produces, with zero DBA intervention and zero upfront cost. Run the three
-            queries below and watch the array reorganize itself after each one.
-          </>
-        }
-      >
-        <DeferredViz>
-          <DatabaseCracking />
-        </DeferredViz>
-      </SectionShell>
-
-      {/* ================================================================
-          3E. PAGE CACHE — Cooling Protocol
-          ================================================================ */}
-      <SectionShell
-        id="cooling-protocol"
-        icon="monitor"
-        eyebrow="Buffer Pool"
-        title="The Cooling Protocol"
-        kicker={
-          <>
-            A single <code>SELECT *</code> table scan can destroy a standard LRU buffer pool. Every
-            sequentially-read page pushes out a frequently-accessed hot page that will be needed
-            again milliseconds later. The result: cache miss storms, I/O spikes, and latency cliffs
-            under mixed workloads.
-            <br />
-            <br />
-            FrankenSQLite&apos;s{" "}
-            <FrankenJargon term="cooling-protocol">Cooling Protocol</FrankenJargon> prevents this. A
-            state machine governs eviction: pages transition through Hot, Cooling, and Cold states.
-            Only pages that survive an entire cooling cycle without a single re-access become
-            eviction candidates. Hot <FrankenJargon term="btree">B-tree</FrankenJargon> interior
-            nodes use <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> to
-            bypass the page cache lookup entirely. Try clicking pages below to re-heat them, then
-            run a background scan to watch the cooling cycle in action.
-          </>
-        }
-      >
-        <DeferredViz>
-          <CoolingProtocol />
-        </DeferredViz>
-      </SectionShell>
-
-      {/* ================================================================
-          3C. DURABILITY — Write-Ahead Log with per-writer lanes
-          ================================================================ */}
-      <SectionShell
-        id="durability"
-        icon="shield"
-        eyebrow="Durability"
-        title="The Write-Ahead Log"
-        kicker={
-          <>
-            Every committed transaction writes its changes to the{" "}
-            <FrankenJargon term="wal">Write-Ahead Log</FrankenJargon> before they reach the main
-            database file. If power fails mid-write, the main file is untouched; uncommitted{" "}
-            <FrankenJargon term="wal">WAL</FrankenJargon> frames are simply discarded on recovery.
-            <br />
-            <br />
-            Standard SQLite serializes all writes through a single WAL writer. FrankenSQLite gives
-            each writer its own lane via the{" "}
-            <FrankenJargon term="write-coordinator">Write Coordinator</FrankenJargon>, and readers
-            locate the most recent version of any page through a lock-free{" "}
-            <FrankenJargon term="wal-index">WAL index</FrankenJargon> in shared memory. Use the tabs
-            below to switch between Normal mode (live write appends), Checkpoint mode (flushing WAL
-            frames back to the main file), and Crash Recovery (discarding uncommitted data after a
-            simulated crash).
-          </>
-        }
-      >
-        <DeferredViz>
-          <WalLanes />
-        </DeferredViz>
-      </SectionShell>
-
-      {/* ================================================================
-          4. SELF-HEALING STORAGE — RaptorQ fountain codes
-          ================================================================ */}
-      <SectionShell
-        id="self-healing"
-        icon="shield"
-        eyebrow="Self-Healing Storage"
-        title="Repairing the WAL"
-        status="partial"
-        statusNote={
-          <>
-            Native file-backed connections can write repair symbols to a <code>.wal-fec</code>{" "}
-            sidecar after each WAL fsync, and the decoder and repair routines exist. The standard
-            recovery path does not read the sidecar yet, so nothing is repaired automatically in
-            the default runtime.
-          </>
-        }
-        kicker={
-          <>
-            A torn write or a flipped bit in the WAL can cost you committed transactions. SQLite
-            can detect that with frame checksums, but all it can do then is stop replaying at the
-            damaged frame.
-            <br />
-            <br />
-            The plan is to store <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>{" "}
-            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> next to the WAL. A
-            fountain code turns K source symbols into as many extra symbols as you like, and almost
-            any K of them (plus a couple) are enough to rebuild the original. Corrupted frames can
-            then be reconstructed during recovery instead of discarded. The demo below shows the
-            idea on a handful of pages; the overhead and failure counts in it are illustrative.
-          </>
-        }
-      >
-        <DeferredViz>
-          <RaptorQHealing />
-        </DeferredViz>
-      </SectionShell>
-
-      {/* ================================================================
-          4B. NATIVE STORAGE FORMAT — Erasure Coded Stream
-          ================================================================ */}
-      <SectionShell
-        id="ecs-stream"
-        icon="hardDrive"
-        eyebrow="Native Mode"
-        title="An Append-Only Commit Stream"
-        status="design"
-        statusNote={
-          <>
-            Native mode is under construction. Commit capsules, RaptorQ-encoded WAL objects and
-            native page groups are landing on <code>main</code>, but there is no stable switch for
-            it on <code>Connection</code>. Everything you run today uses standard SQLite files.
-          </>
-        }
-        kicker={
-          <>
-            SQLite&apos;s files are mutable: pages are overwritten in place, and journals exist to
-            make that safe across a crash. Native mode is FrankenSQLite&apos;s longer-term
-            alternative. The source of truth becomes an append-only stream of commit capsules,
-            each encoded as <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> symbols, and a
-            commit exists once its marker is durable. A normal <code>.db</code> file can still be
-            produced from the stream for compatibility.
-            <br />
-            <br />
-            The code is <FrankenJargon term="systematic-layout">systematic</FrankenJargon>: the
-            original bytes are stored as-is and the{" "}
-            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> sit alongside them,
-            so ordinary reads don&apos;t decode anything. Press <strong>Start DB Writers</strong>{" "}
-            below for a simplified picture of data and repair symbols streaming to disk.
-          </>
-        }
-      >
-        <DeferredViz>
-          <EcsStream />
-        </DeferredViz>
-      </SectionShell>
-
-      {/* ================================================================
           5. WHEN CONFLICTS HAPPEN — Write conflict resolution
           ================================================================ */}
       <SectionShell
@@ -687,42 +475,34 @@ export default function HomePage() {
       </SectionShell>
 
       {/* ================================================================
-          5B. THE SAFE MERGE LADDER
+          3C. DURABILITY — Write-Ahead Log with per-writer lanes
           ================================================================ */}
       <SectionShell
-        id="safe-merge-ladder"
-        icon="layers"
-        eyebrow="Same-Page Conflicts"
-        title="The Safe Merge Ladder"
-        status="dormant"
-        statusNote={
-          <>
-            The rebase and patch-merge code lives in <code>fsqlite-mvcc</code> and is exercised by
-            tests, but the live commit path doesn&apos;t call it and the intent log isn&apos;t
-            populated during writes. Today every same-page conflict is resolved by abort and retry.
-          </>
-        }
+        id="durability"
+        icon="shield"
+        eyebrow="Durability"
+        title="The Write-Ahead Log"
+        status="live"
         kicker={
           <>
-            Page-level versioning has one obvious weakness: two transactions inserting different
-            rows into the same leaf page conflict, even though their changes don&apos;t really
-            overlap. Right now the loser gets <code>SQLITE_BUSY_SNAPSHOT</code> and retries.
+            Commits go to the <FrankenJargon term="wal">write-ahead log</FrankenJargon> first: each
+            changed page is appended as a frame, and the last frame of a transaction marks the
+            commit. If the power goes out halfway through, recovery replays complete transactions
+            and ignores the torn tail. A checkpoint later copies frames back into the main file.
             <br />
             <br />
-            The <FrankenJargon term="safe-merge-ladder">safe merge ladder</FrankenJargon> is the
-            planned fix. Each writer keeps a log of what it meant to do at the B-tree level
-            (&ldquo;insert rowid 42&rdquo;, &ldquo;delete this index entry&rdquo;). On a same-page
-            conflict, the engine first tries to{" "}
-            <FrankenJargon term="deterministic-rebase">replay that intent</FrankenJargon> against the
-            winner&apos;s version of the page. If that doesn&apos;t apply, it tries a structured
-            patch that merges changes cell by cell. Raw byte-level XOR merging is deliberately ruled
-            out, because two byte-disjoint edits can still produce an invalid page. Only a conflict
-            that survives both rungs aborts. The demo below walks through a merge step by step.
+            FrankenSQLite keeps SQLite&apos;s WAL format and its{" "}
+            <FrankenJargon term="wal-index">shared-memory WAL index</FrankenJargon>, which is how it
+            can share a live WAL with stock SQLite readers. With concurrent writers, the
+            interesting part is the commit itself: each connection validates and publishes its
+            frames inside a short guarded section, so the log stays one ordered sequence even
+            though the work that produced it ran in parallel. Use the tabs below to switch between
+            normal appends, a checkpoint, and crash recovery.
           </>
         }
       >
         <DeferredViz>
-          <SafeMergeLadder />
+          <WalLanes />
         </DeferredViz>
       </SectionShell>
 
@@ -799,47 +579,6 @@ export default function HomePage() {
       </SectionShell>
 
       {/* ================================================================
-          6B. ENCRYPTION AT REST — Page-level encryption pipeline
-          ================================================================ */}
-      <SectionShell
-        id="encryption"
-        icon="shield"
-        eyebrow="Encryption at Rest"
-        title="Page Encryption"
-        status="dormant"
-        statusNote={
-          <>
-            Not usable yet. The implementation is in <code>fsqlite-pager</code>, but no{" "}
-            <code>PRAGMA key</code> or <code>rekey</code> reaches it. Because unknown PRAGMAs are
-            ignored (as in SQLite), <code>PRAGMA key = &apos;...&apos;</code> succeeds and the
-            database is still written in plain text.
-          </>
-        }
-        kicker={
-          <>
-            Encrypting a SQLite database normally means buying SQLite&apos;s commercial SEE
-            extension or switching to a fork like SQLCipher. The design here builds it into the
-            pager. Each page is encrypted with{" "}
-            <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> using a fresh random
-            24-byte nonce, and the 16-byte authentication tag lives in the page&apos;s reserved
-            bytes.
-            <br />
-            <br />
-            Keys use an <FrankenJargon term="dek-kek">envelope</FrankenJargon>: a random data key
-            encrypts the pages, and a key derived from your passphrase with{" "}
-            <FrankenJargon term="argon2id">Argon2id</FrankenJargon> encrypts the data key. Changing
-            the passphrase re-wraps one 32-byte key instead of rewriting the file. Random nonces
-            avoid any global counter, so VM snapshot rollbacks and crashes can&apos;t cause nonce
-            reuse. Step through the pipeline below to follow a page through it.
-          </>
-        }
-      >
-        <DeferredViz>
-          <EncryptionPipeline />
-        </DeferredViz>
-      </SectionShell>
-
-      {/* ================================================================
           7. FROM SQL TO DISK — Query pipeline flythrough
           ================================================================ */}
       <SectionShell
@@ -847,6 +586,7 @@ export default function HomePage() {
         icon="terminal"
         eyebrow="From SQL to Disk"
         title="The Query Pipeline"
+        status="live"
         kicker={
           <>
             SQL text goes through a hand-written lexer and parser (no Lemon, no generated grammar)
@@ -898,6 +638,196 @@ export default function HomePage() {
         <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40">
           <RustCodeBlock code={codeExample} title="src/main.rs" />
         </FrankenContainer>
+      </SectionShell>
+
+      {/* ================================================================
+          ON THE WORKBENCH
+          ================================================================ */}
+      <section
+        id="workbench"
+        aria-labelledby="workbench-heading"
+        className="relative mx-auto max-w-7xl px-6 pt-24 md:pt-32 scroll-mt-28"
+      >
+        <div className="rounded-3xl border border-white/10 bg-white/[0.02] p-8 md:p-12">
+          <div className="inline-flex items-center gap-3 mb-6">
+            <div className="h-px w-8 bg-amber-400/40" />
+            <span className="text-[10px] font-black uppercase tracking-[0.3em] text-amber-300/80">
+              On the workbench
+            </span>
+          </div>
+          <h2
+            id="workbench-heading"
+            className="text-3xl md:text-5xl font-black text-white tracking-tighter mb-6"
+          >
+            Designed, Built, Not Yet Switched On
+          </h2>
+          <p className="text-lg text-slate-400 font-medium leading-relaxed max-w-3xl">
+            Everything above runs in the default engine today. The next four sections are the
+            ideas FrankenSQLite is best known for, and none of them is fully live yet. Some have
+            working, tested code that the commit path doesn&apos;t call; some work only in part;
+            one is a design with pieces landing on <code>main</code> every week. Each section says
+            exactly where it stands, so you can tell the plan from the product.
+          </p>
+        </div>
+      </section>
+
+      {/* ================================================================
+          4. SELF-HEALING STORAGE — RaptorQ fountain codes
+          ================================================================ */}
+      <SectionShell
+        id="self-healing"
+        icon="shield"
+        eyebrow="Self-Healing Storage"
+        title="Repairing the WAL"
+        status="partial"
+        statusNote={
+          <>
+            File-backed connections running with a blocking thread pool generate repair symbols
+            for durable WAL ranges into a <code>-wal-fec</code> sidecar, in the background
+            (<code>PRAGMA raptorq_repair_symbols</code> sets how many). Ordinary recovery still
+            stops at the first bad checksum and doesn&apos;t consult them; an explicit{" "}
+            <code>repair_and_open</code> API on Unix can.
+          </>
+        }
+        kicker={
+          <>
+            A torn write or a flipped bit in the WAL can cost you committed transactions. SQLite
+            can detect that with frame checksums, but all it can do then is stop replaying at the
+            damaged frame.
+            <br />
+            <br />
+            The plan is to store <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>{" "}
+            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> next to the WAL. A
+            fountain code turns K source symbols into as many extra symbols as you like, and almost
+            any K of them (plus a couple) are enough to rebuild the original. Corrupted frames can
+            then be reconstructed during recovery instead of discarded. The demo below shows the
+            idea on a handful of pages; the overhead and failure counts in it are illustrative.
+          </>
+        }
+      >
+        <DeferredViz>
+          <RaptorQHealing />
+        </DeferredViz>
+      </SectionShell>
+
+      {/* ================================================================
+          4B. NATIVE STORAGE FORMAT — Erasure Coded Stream
+          ================================================================ */}
+      <SectionShell
+        id="ecs-stream"
+        icon="hardDrive"
+        eyebrow="Native Mode"
+        title="An Append-Only Commit Stream"
+        status="design"
+        statusNote={
+          <>
+            Native mode is under construction. Commit capsules, RaptorQ-encoded WAL objects and
+            native page groups are landing on <code>main</code>, but there is no stable switch for
+            it on <code>Connection</code>. Everything you run today uses standard SQLite files.
+          </>
+        }
+        kicker={
+          <>
+            SQLite&apos;s files are mutable: pages are overwritten in place, and journals exist to
+            make that safe across a crash. Native mode is FrankenSQLite&apos;s longer-term
+            alternative. The source of truth becomes an append-only stream of commit capsules,
+            each encoded as <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> symbols, and a
+            commit exists once its marker is durable. A normal <code>.db</code> file can still be
+            produced from the stream for compatibility.
+            <br />
+            <br />
+            The code is <FrankenJargon term="systematic-layout">systematic</FrankenJargon>: the
+            original bytes are stored as-is and the{" "}
+            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> sit alongside them,
+            so ordinary reads don&apos;t decode anything. Press <strong>Start DB Writers</strong>{" "}
+            below for a simplified picture of data and repair symbols streaming to disk.
+          </>
+        }
+      >
+        <DeferredViz>
+          <EcsStream />
+        </DeferredViz>
+      </SectionShell>
+
+      {/* ================================================================
+          5B. THE SAFE MERGE LADDER
+          ================================================================ */}
+      <SectionShell
+        id="safe-merge-ladder"
+        icon="layers"
+        eyebrow="Same-Page Conflicts"
+        title="The Safe Merge Ladder"
+        status="dormant"
+        statusNote={
+          <>
+            The rebase and patch-merge code lives in <code>fsqlite-mvcc</code> and is exercised by
+            tests, but the live commit path doesn&apos;t call it and the intent log isn&apos;t
+            populated during writes. Today every same-page conflict is resolved by abort and retry.
+          </>
+        }
+        kicker={
+          <>
+            Page-level versioning has one obvious weakness: two transactions inserting different
+            rows into the same leaf page conflict, even though their changes don&apos;t really
+            overlap. Right now the loser gets <code>SQLITE_BUSY_SNAPSHOT</code> and retries.
+            <br />
+            <br />
+            The <FrankenJargon term="safe-merge-ladder">safe merge ladder</FrankenJargon> is the
+            planned fix. Each writer keeps a log of what it meant to do at the B-tree level
+            (&ldquo;insert rowid 42&rdquo;, &ldquo;delete this index entry&rdquo;). On a same-page
+            conflict, the engine first tries to{" "}
+            <FrankenJargon term="deterministic-rebase">replay that intent</FrankenJargon> against the
+            winner&apos;s version of the page. If that doesn&apos;t apply, it tries a structured
+            patch that merges changes cell by cell. Raw byte-level XOR merging is deliberately ruled
+            out, because two byte-disjoint edits can still produce an invalid page. Only a conflict
+            that survives both rungs aborts. The demo below walks through a merge step by step.
+          </>
+        }
+      >
+        <DeferredViz>
+          <SafeMergeLadder />
+        </DeferredViz>
+      </SectionShell>
+
+      {/* ================================================================
+          6B. ENCRYPTION AT REST — Page-level encryption pipeline
+          ================================================================ */}
+      <SectionShell
+        id="encryption"
+        icon="shield"
+        eyebrow="Encryption at Rest"
+        title="Page Encryption"
+        status="dormant"
+        statusNote={
+          <>
+            Not usable yet. The implementation is in <code>fsqlite-pager</code>, but no{" "}
+            <code>PRAGMA key</code> or <code>rekey</code> reaches it. Because unknown PRAGMAs are
+            ignored (as in SQLite), <code>PRAGMA key = &apos;...&apos;</code> succeeds and the
+            database is still written in plain text.
+          </>
+        }
+        kicker={
+          <>
+            Encrypting a SQLite database normally means buying SQLite&apos;s commercial SEE
+            extension or switching to a fork like SQLCipher. The design here builds it into the
+            pager. Each page is encrypted with{" "}
+            <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> using a fresh random
+            24-byte nonce, and the 16-byte authentication tag lives in the page&apos;s reserved
+            bytes.
+            <br />
+            <br />
+            Keys use an <FrankenJargon term="dek-kek">envelope</FrankenJargon>: a random data key
+            encrypts the pages, and a key derived from your passphrase with{" "}
+            <FrankenJargon term="argon2id">Argon2id</FrankenJargon> encrypts the data key. Changing
+            the passphrase re-wraps one 32-byte key instead of rewriting the file. Random nonces
+            avoid any global counter, so VM snapshot rollbacks and crashes can&apos;t cause nonce
+            reuse. Step through the pipeline below to follow a page through it.
+          </>
+        }
+      >
+        <DeferredViz>
+          <EncryptionPipeline />
+        </DeferredViz>
       </SectionShell>
 
       {/* ================================================================

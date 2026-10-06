@@ -306,9 +306,11 @@ export default function GettingStartedPage() {
                 <StatusBadge status="partial" />
               </div>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Native file-backed connections can write RaptorQ repair symbols to a{" "}
-                <code className={inlineCode}>.wal-fec</code> sidecar, but recovery doesn&apos;t read
-                them yet. Back up your data the same way you would with SQLite.
+                File-backed connections write RaptorQ repair symbols for the WAL to a{" "}
+                <code className={inlineCode}>-wal-fec</code> sidecar in the background, but opening
+                a damaged database doesn&apos;t use them automatically yet (an explicit{" "}
+                <code className={inlineCode}>fsqlite::compat::recovery::repair_and_open</code> exists
+                on Unix). Back up your data the same way you would with SQLite.
               </p>
             </div>
             <div className="rounded-xl border border-slate-400/20 bg-slate-400/[0.03] p-6">

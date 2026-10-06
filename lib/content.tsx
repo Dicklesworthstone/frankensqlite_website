@@ -757,8 +757,8 @@ export const changelog: ChangelogEntry[] = [
     title: "Releases, dogfooding, and going async",
     items: [
       "Regular releases begin, with signed prebuilt binaries and checksum-verifying installers.",
-      "cass, MCP Agent Mail and beads_rust run on FrankenSQLite in daily use, and their bug reports drive much of the fix list.",
-      "v0.2.0 (August 4) moves the storage stack onto async I/O. The project stops publishing performance numbers until they can be re-measured cleanly.",
+      "cass, beads_rust and the Rust MCP Agent Mail build on FrankenSQLite, and their bug reports drive much of the fix list.",
+      "In late July the storage stack moves to async I/O (released as v0.2.0 on August 4), and the project withdraws its performance numbers until they can be re-measured cleanly.",
     ],
   },
   {
@@ -767,7 +767,7 @@ export const changelog: ChangelogEntry[] = [
     items: [
       "v0.4.0 aligns with asupersync 0.5. From v0.4.4 on, every crate ships at the same version.",
       "Groundwork for cross-process MVCC lands: a mapped page-lock table and MVCC shared memory, not yet in charge of the public Connection.",
-      "A TypeScript SDK and WASM worker ship, along with UTF-16 database support and a long list of stock-SQLite parity fixes.",
+      "A TypeScript SDK and WASM worker land in the repo, along with UTF-16 database support and a long list of stock-SQLite parity fixes.",
     ],
   },
   {

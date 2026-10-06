@@ -27,7 +27,7 @@ import {
   Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { FrankenStitch } from "./franken-elements";
+import { type BuildStatus, FrankenStitch, StatusBadge } from "./franken-elements";
 import FrankenGlitch from "./franken-glitch";
 
 const sectionIcons = {
@@ -67,6 +67,10 @@ type Props = {
   className?: string;
   headingLevel?: 1 | 2;
   forceReveal?: boolean;
+  /** How far along this capability is in the engine today. */
+  status?: BuildStatus;
+  /** One short sentence qualifying the status badge. */
+  statusNote?: React.ReactNode;
 };
 
 export default function SectionShell({
@@ -79,6 +83,8 @@ export default function SectionShell({
   className,
   headingLevel = 2,
   forceReveal = false,
+  status,
+  statusNote,
 }: Props) {
   const Icon = icon ? sectionIcons[icon] : undefined;
   const HeadingTag = `h${headingLevel}` as const;
@@ -101,12 +107,17 @@ export default function SectionShell({
             viewport={skipAnim ? undefined : { once: true, amount: 0.05 }}
             transition={skipAnim ? { duration: 0 } : { duration: 0.8, ease: [0.19, 1, 0.22, 1] }}
           >
-            {eyebrow && (
-              <div className="inline-flex items-center gap-3 mb-8">
-                <div className="h-px w-8 bg-teal-500/40" />
-                <span className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-500/80">
-                  {eyebrow}
-                </span>
+            {(eyebrow || status) && (
+              <div className="flex flex-wrap items-center gap-3 mb-8">
+                {eyebrow && (
+                  <>
+                    <div className="h-px w-8 bg-teal-500/40" />
+                    <span className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-500/80">
+                      {eyebrow}
+                    </span>
+                  </>
+                )}
+                {status && <StatusBadge status={status} />}
               </div>
             )}
             <div className="space-y-6">
@@ -130,6 +141,14 @@ export default function SectionShell({
                 <div className="text-lg md:text-xl text-slate-400 font-medium leading-relaxed">
                   {kicker}
                 </div>
+              )}
+              {statusNote && (
+                <p className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm leading-relaxed text-slate-400">
+                  <span className="font-black uppercase tracking-widest text-[10px] text-slate-300 mr-2">
+                    Status
+                  </span>
+                  {statusNote}
+                </p>
               )}
             </div>
           </motion.div>

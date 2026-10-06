@@ -1,22 +1,30 @@
 import { describe, expect, it } from "vitest";
+import { BUILD_STATUS } from "@/components/franken-elements";
 import {
+  architectureLayers,
   changelog,
+  cliExample,
   codeExample,
   comparisonData,
+  comparisonEngines,
   concurrentWritersExample,
   crates,
-  ecsEncryptionExample,
+  engineSnapshot,
   faq,
   features,
   heroStats,
   navItems,
+  pragmaExample,
   screenshots,
   siteConfig,
+  statusBoard,
   timeTravelExample,
 } from "@/lib/content";
 import { getJargon, jargonDictionary } from "@/lib/franken-jargon";
 
-describe("lib/content.ts", () => {
+const allExamples = [codeExample, concurrentWritersExample, timeTravelExample, pragmaExample, cliExample];
+
+describe("lib/content.tsx", () => {
   describe("siteConfig", () => {
     it("has a valid URL", () => {
       expect(siteConfig.url).toMatch(/^https:\/\//);
@@ -35,8 +43,8 @@ describe("lib/content.ts", () => {
     it("has a title containing the name", () => {
       expect(siteConfig.title).toContain("FrankenSQLite");
     });
-    it("has a non-empty description", () => {
-      expect(siteConfig.description.length).toBeGreaterThan(0);
+    it("does not claim zero unsafe code", () => {
+      expect(siteConfig.description.toLowerCase()).not.toContain("zero unsafe");
     });
   });
 
@@ -47,197 +55,167 @@ describe("lib/content.ts", () => {
     it("all items have href starting with /", () => {
       navItems.forEach((item) => expect(item.href).toMatch(/^\//));
     });
-    it("all items have non-empty labels", () => {
-      navItems.forEach((item) => expect(item.label.length).toBeGreaterThan(0));
+    it("includes Home, Architecture and Spec Evolution routes", () => {
+      const hrefs = navItems.map((n) => n.href as string);
+      expect(hrefs).toContain("/");
+      expect(hrefs).toContain("/architecture");
+      expect(hrefs).toContain("/spec_evolution");
     });
-    it("includes Home route", () => {
-      expect(navItems.some((n) => n.href === "/")).toBe(true);
+  });
+
+  describe("engineSnapshot", () => {
+    it("names a semver release", () => {
+      expect(engineSnapshot.version).toMatch(/^\d+\.\d+\.\d+$/);
     });
-    it("includes Architecture route", () => {
-      expect(navItems.some((n) => n.href === "/architecture")).toBe(true);
-    });
-    it("includes Spec Evolution route", () => {
-      expect(navItems.some((n) => n.href === "/spec_evolution")).toBe(true);
+    it("points release links at the engine repository", () => {
+      expect(engineSnapshot.releaseUrl).toContain(`v${engineSnapshot.version}`);
+      expect(engineSnapshot.releaseUrl).toContain(siteConfig.github);
     });
   });
 
   describe("heroStats", () => {
-    it("has 4 stat entries", () => {
+    it("has 4 stat entries with labels and values", () => {
       expect(heroStats).toHaveLength(4);
-    });
-    it("all stats have label, value, and helper", () => {
       heroStats.forEach((stat) => {
         expect(stat.label).toBeTruthy();
         expect(stat.value).toBeTruthy();
       });
     });
-    it("crate count is 26", () => {
+    it("crate count matches the crate list", () => {
       const crateStat = heroStats.find((s) => s.label.toLowerCase().includes("crate"));
-      expect(crateStat?.value).toBe("26");
-    });
-    it("unsafe blocks is 0", () => {
-      const unsafeStat = heroStats.find((s) => s.label.toLowerCase().includes("unsafe"));
-      expect(unsafeStat?.value).toBe("0");
+      expect(crateStat?.value).toBe(String(crates.length));
+      expect(crates.length).toBe(engineSnapshot.workspaceCrates);
     });
   });
 
   describe("features", () => {
-    it("has at least 5 features", () => {
-      expect(features.length).toBeGreaterThanOrEqual(5);
-    });
-    it("has exactly 12 features", () => {
-      expect(features).toHaveLength(12);
-    });
-    it("all features have title, description, and icon", () => {
+    it("every feature has a title, description, icon and known status", () => {
+      expect(features.length).toBeGreaterThanOrEqual(6);
       features.forEach((f) => {
         expect(f.title).toBeTruthy();
         expect(f.description).toBeTruthy();
         expect(f.icon).toBeTruthy();
+        expect(Object.keys(BUILD_STATUS)).toContain(f.status);
       });
     });
-    it("includes MVCC-related feature", () => {
-      expect(features.some((f) => f.title.toLowerCase().includes("concurrent"))).toBe(true);
+    it("leads with live features", () => {
+      expect(features[0].status).toBe("live");
+      expect(features[0].title.toLowerCase()).toContain("concurrent");
     });
-    it("includes adaptive indexing feature", () => {
-      expect(features.some((f) => f.title.toLowerCase().includes("adaptive"))).toBe(true);
+    it("does not present unwired encryption as available", () => {
+      const encryption = features.find((f) => f.title.toLowerCase().includes("encryption"));
+      expect(encryption).toBeDefined();
+      expect(["live", "opt-in"]).not.toContain(encryption?.status);
     });
-    it("includes structured concurrency feature", () => {
-      expect(features.some((f) => f.title.toLowerCase().includes("structured"))).toBe(true);
+  });
+
+  describe("statusBoard", () => {
+    it("has a group for each stage, each with items", () => {
+      const statuses = statusBoard.map((g) => g.status);
+      expect(statuses).toEqual(["live", "partial", "dormant", "design"]);
+      statusBoard.forEach((group) => {
+        expect(group.heading).toBeTruthy();
+        expect(group.items.length).toBeGreaterThan(0);
+      });
     });
   });
 
   describe("crates", () => {
-    it("has 26 crates", () => {
-      expect(crates).toHaveLength(26);
-    });
-    it("all crates have name and description", () => {
-      crates.forEach((c) => {
-        expect(c.name).toBeTruthy();
-        expect(c.description).toBeTruthy();
-      });
-    });
-    it("all crate names start with fsqlite", () => {
-      crates.forEach((c) => expect(c.name).toMatch(/^fsqlite/));
-    });
     it("has no duplicate crate names", () => {
       const names = crates.map((c) => c.name);
       expect(new Set(names).size).toBe(names.length);
     });
-    it("includes the main fsqlite crate", () => {
-      expect(crates.some((c) => c.name === "fsqlite")).toBe(true);
-    });
-    it("includes key crates: parser, btree, mvcc, wal, vdbe", () => {
+    it("includes the facade and the storage stack", () => {
       const names = crates.map((c) => c.name);
-      expect(names).toContain("fsqlite-parser");
-      expect(names).toContain("fsqlite-btree");
-      expect(names).toContain("fsqlite-mvcc");
-      expect(names).toContain("fsqlite-wal");
-      expect(names).toContain("fsqlite-vdbe");
+      for (const name of [
+        "fsqlite",
+        "fsqlite-core",
+        "fsqlite-parser",
+        "fsqlite-btree",
+        "fsqlite-mvcc",
+        "fsqlite-wal",
+        "fsqlite-vdbe",
+        "fsqlite-wasm",
+      ]) {
+        expect(names).toContain(name);
+      }
+    });
+    it("every crate appears in exactly one architecture layer", () => {
+      const layered = architectureLayers.flatMap((layer) => layer.crates);
+      expect(new Set(layered).size).toBe(layered.length);
+      expect([...layered].sort()).toEqual(crates.map((c) => c.name).sort());
     });
   });
 
   describe("comparisonData", () => {
-    it("has at least 5 comparison rows", () => {
+    it("has FrankenSQLite as the first engine", () => {
+      expect(comparisonEngines[0].key).toBe("frankensqlite");
+    });
+    it("every row has a cell for every engine", () => {
       expect(comparisonData.length).toBeGreaterThanOrEqual(5);
-    });
-    it("has exactly 17 comparison rows", () => {
-      expect(comparisonData).toHaveLength(17);
-    });
-    it("all rows have feature and frankensqlite columns", () => {
       comparisonData.forEach((row) => {
         expect(row.feature).toBeTruthy();
-        expect(row.frankensqlite).toBeTruthy();
-      });
-    });
-    it("all rows have csqlite, libsql, and duckdb columns", () => {
-      comparisonData.forEach((row) => {
-        expect(row.csqlite).toBeTruthy();
-        expect(row.libsql).toBeTruthy();
-        expect(row.duckdb).toBeTruthy();
+        comparisonEngines.forEach((engine) => {
+          expect(row.cells[engine.key].text).toBeTruthy();
+          expect(["yes", "partial", "no", "na"]).toContain(row.cells[engine.key].tone);
+        });
       });
     });
   });
 
-  describe("codeExample", () => {
-    it("is a non-empty string", () => {
-      expect(codeExample.length).toBeGreaterThan(100);
-    });
-    it("contains Rust syntax markers", () => {
+  describe("code examples", () => {
+    it("quickstart opens a connection and awaits the async API", () => {
       expect(codeExample).toContain("fn main");
-      expect(codeExample).toContain("fsqlite");
-    });
-    it("contains SQL statement", () => {
+      expect(codeExample).toContain("Connection::open");
+      expect(codeExample).toContain(".await");
       expect(codeExample).toContain("CREATE TABLE");
-    });
-    it("shows query preparation", () => {
       expect(codeExample).toContain("prepare");
+    });
+    it("concurrent writers use one connection per thread", () => {
+      expect(concurrentWritersExample).toContain("thread::spawn");
+      expect(concurrentWritersExample).toContain("is_transient");
+    });
+    it("time travel uses the COMMITSEQ syntax", () => {
+      expect(timeTravelExample).toContain("FOR SYSTEM_TIME AS OF COMMITSEQ");
+    });
+    it("no example relies on unwired PRAGMAs", () => {
+      allExamples.forEach((example) => {
+        expect(example).not.toMatch(/PRAGMA\s+(fsqlite\.)?key\b/);
+        expect(example).not.toContain("fsqlite.mode = native");
+        expect(example).not.toContain("repair_ratio");
+      });
     });
   });
 
   describe("changelog", () => {
-    it("has at least 3 phases", () => {
+    it("has dated entries with items", () => {
       expect(changelog.length).toBeGreaterThanOrEqual(3);
-    });
-    it("has exactly 5 phases", () => {
-      expect(changelog).toHaveLength(5);
-    });
-    it("all entries have period, title, and items", () => {
       changelog.forEach((entry) => {
-        expect(entry.period).toBeTruthy();
+        expect(entry.period).toMatch(/20\d\d/);
         expect(entry.title).toBeTruthy();
         expect(entry.items.length).toBeGreaterThan(0);
-      });
-    });
-    it("phases are sequentially numbered", () => {
-      changelog.forEach((entry, i) => {
-        expect(entry.period).toBe(`Phase ${i + 1}`);
       });
     });
   });
 
   describe("screenshots", () => {
-    it("has at least 1 screenshot", () => {
+    it("all screenshots are webp images under /images", () => {
       expect(screenshots.length).toBeGreaterThanOrEqual(1);
-    });
-    it("all screenshots have src, alt, and title", () => {
       screenshots.forEach((s) => {
-        expect(s.src).toMatch(/^\/images\//);
+        expect(s.src).toMatch(/^\/images\/.*\.webp$/);
         expect(s.alt).toBeTruthy();
         expect(s.title).toBeTruthy();
-      });
-    });
-    it("all screenshot srcs are webp images", () => {
-      screenshots.forEach((s) => {
-        expect(s.src).toMatch(/\.webp$/);
       });
     });
   });
 
   describe("faq", () => {
-    it("has at least 3 FAQ items", () => {
+    it("every item is a question with an answer", () => {
       expect(faq.length).toBeGreaterThanOrEqual(3);
-    });
-    it("has exactly 13 FAQ items", () => {
-      expect(faq).toHaveLength(13);
-    });
-    it("all items have question and answer", () => {
       faq.forEach((item) => {
-        expect(item.question).toBeTruthy();
-        expect(item.answer).toBeTruthy();
         expect(item.question.endsWith("?")).toBe(true);
+        expect(item.answer).toBeTruthy();
       });
-    });
-  });
-
-  describe("advanced code examples", () => {
-    it("concurrentWritersExample contains thread::spawn", () => {
-      expect(concurrentWritersExample).toContain("thread::spawn");
-    });
-    it("timeTravelExample contains FOR SYSTEM_TIME AS OF", () => {
-      expect(timeTravelExample).toContain("SYSTEM_TIME AS OF");
-    });
-    it("ecsEncryptionExample contains PRAGMA fsqlite.mode", () => {
-      expect(ecsEncryptionExample).toContain("PRAGMA fsqlite.mode");
     });
   });
 });

@@ -7,7 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 import ComparisonTable from "@/components/comparison-table";
 import FeatureGrid from "@/components/feature-grid";
-import { FrankenContainer } from "@/components/franken-elements";
+import { FrankenContainer, StatusBadge } from "@/components/franken-elements";
 import FrankenEye from "@/components/franken-eye";
 import FrankenGlitch from "@/components/franken-glitch";
 import { FrankenJargon } from "@/components/franken-jargon";
@@ -18,7 +18,17 @@ import SectionShell from "@/components/section-shell";
 import StatsGrid from "@/components/stats-grid";
 import Timeline from "@/components/timeline";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
-import { changelog, codeExample, crates, heroStats, siteConfig } from "@/lib/content";
+import {
+  buildStory,
+  changelog,
+  codeExample,
+  crates,
+  engineSnapshot,
+  heroStats,
+  performanceNote,
+  siteConfig,
+  statusBoard,
+} from "@/lib/content";
 
 // Loading skeleton for dynamically imported viz components
 function VizSkeleton() {
@@ -163,7 +173,7 @@ export default function HomePage() {
                 className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/5 text-[10px] font-black uppercase tracking-[0.3em] text-teal-500 mb-8"
               >
                 <div className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-ping" />
-                26-Crate Workspace &middot; Pure Safe Rust
+                v{engineSnapshot.version} &middot; SQLite in safe Rust
               </motion.div>
 
               <motion.h1
@@ -178,11 +188,11 @@ export default function HomePage() {
               </motion.h1>
 
               <div className="text-lg md:text-xl text-slate-400 font-medium leading-relaxed max-w-2xl mb-12">
-                A clean-room Rust reimplementation of SQLite with{" "}
-                <FrankenJargon term="mvcc">concurrent writers</FrankenJargon>,{" "}
-                <FrankenJargon term="raptorq">self-healing storage</FrankenJargon>, and{" "}
-                <FrankenJargon term="zero-unsafe">zero unsafe blocks</FrankenJargon> across 26
-                composable crates.
+                SQLite, rewritten from scratch in Rust. It opens the database files you already
+                have, speaks the same SQL, and lets{" "}
+                <FrankenJargon term="mvcc">more than one connection write at a time</FrankenJargon>
+                , with <FrankenJargon term="ssi">serializable isolation</FrankenJargon> on by
+                default.
               </div>
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full sm:w-auto">
@@ -257,7 +267,7 @@ export default function HomePage() {
             <div className="absolute -bottom-6 left-4 md:-bottom-10 md:left-6 z-30 glass-modern p-4 md:p-6 rounded-2xl border border-teal-500/20 shadow-2xl animate-float flex">
               <div className="flex flex-col text-left">
                 <span className="text-2xl md:text-4xl font-black text-teal-400 tabular-nums tracking-tighter">
-                  26
+                  {engineSnapshot.workspaceCrates}
                 </span>
                 <span className="text-[8px] md:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">
                   Workspace Crates
@@ -279,13 +289,68 @@ export default function HomePage() {
           <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter mb-4">
             What Makes It Different
           </h2>
-          <p className="text-lg text-slate-400 font-medium">
-            Concurrent writers, self-healing pages, and compiler-enforced safety, built into the
-            engine, not bolted on.
+          <p className="text-lg text-slate-400 font-medium max-w-3xl">
+            Some of this works today and some of it is still on the bench. Each card says which.
+            Hover a badge for what it means.
           </p>
         </div>
         <FeatureGrid />
       </div>
+
+      {/* Status board */}
+      <section
+        id="status"
+        aria-labelledby="status-heading"
+        className="max-w-7xl mx-auto px-6 mb-32 scroll-mt-28"
+      >
+        <div className="mb-10 flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="h-px w-8 bg-teal-500/40" />
+              <span className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-500/80">
+                As of v{engineSnapshot.version}, {engineSnapshot.releasedOn}
+              </span>
+            </div>
+            <h2
+              id="status-heading"
+              className="text-3xl md:text-5xl font-black text-white tracking-tighter"
+            >
+              Where It Stands
+            </h2>
+          </div>
+          <a
+            href={engineSnapshot.readmeStatusUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 text-sm font-bold text-teal-400 hover:text-teal-300"
+          >
+            Full status in the engine README
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+          {statusBoard.map((group) => (
+            <div
+              key={group.status}
+              className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 flex flex-col"
+            >
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <h3 className="text-lg font-black text-white">{group.heading}</h3>
+                <StatusBadge status={group.status} />
+              </div>
+              <p className="text-xs text-slate-500 mb-5">{group.blurb}</p>
+              <ul className="space-y-4">
+                {group.items.map((item) => (
+                  <li key={item.name}>
+                    <div className="text-sm font-bold text-slate-200">{item.name}</div>
+                    <div className="text-xs leading-relaxed text-slate-400 mt-1">{item.detail}</div>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ================================================================
           2. THE PROBLEM — SQLite can only write one thing at a time
@@ -295,20 +360,23 @@ export default function HomePage() {
         icon="zap"
         eyebrow="The Problem"
         title="One Writer at a Time"
+        status="live"
         kicker={
           <>
-            Production SQLite applications hit one wall repeatedly: <code>SQLITE_BUSY</code>. The
-            engine acquires a single global write lock, so every concurrent writer queues behind it,
-            one at a time, no exceptions. Under load, you either retry in a loop or serialize your
-            entire write path through a single thread.
+            SQLite lets many connections read at once, but only one can write. In WAL mode a single
+            lock byte (<code>WAL_WRITE_LOCK</code>) decides who that is, and everyone else waits or
+            gets <code>SQLITE_BUSY</code>. Add cores and the write path doesn&apos;t get any wider.
+            Most apps end up funneling every write through one thread.
             <br />
             <br />
-            FrankenSQLite eliminates this bottleneck. Its{" "}
-            <FrankenJargon term="mvcc">page-level MVCC</FrankenJargon> gives each writer a private{" "}
-            <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> of only the pages it
-            touches. Eight writers proceed in parallel, operating on different pages simultaneously,
-            with zero lock contention and zero <code>SQLITE_BUSY</code> errors. The race below shows
-            exactly what that difference looks like under load.
+            FrankenSQLite replaces that lock with{" "}
+            <FrankenJargon term="mvcc">page-level MVCC</FrankenJargon>. Each writer works against
+            its own <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> and records
+            new versions of the pages it changes. Writers on different pages do their work in
+            parallel; commit still has a short coordinated step to publish the result. If two
+            writers change the same page, the second one to commit gets{" "}
+            <code>SQLITE_BUSY_SNAPSHOT</code> and retries. The race below is a simplified picture of
+            the difference.
           </>
         }
       >
@@ -323,22 +391,21 @@ export default function HomePage() {
         icon="layers"
         eyebrow="How It Works"
         title="Snapshot Isolation"
+        status="live"
         kicker={
           <>
-            When a transaction begins, FrankenSQLite captures a{" "}
-            <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>: a frozen-in-time view
-            of every page in the database. Readers see exactly the state that existed at their start
-            time. Writers create new <FrankenJargon term="cow">copy-on-write</FrankenJargon> page
-            versions without touching the originals, so readers are never blocked and never see
-            partial writes.
+            A transaction starts by taking a{" "}
+            <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>: in effect, the
+            commit sequence number of the newest commit it is allowed to see. Writers don&apos;t
+            overwrite pages other transactions might be reading. They create new versions, so a
+            reader keeps seeing the database exactly as it was when it started, and never sees half
+            of someone else&apos;s write.
             <br />
             <br />
-            The visibility rule fits in a single line of code: if a page version&apos;s commit
-            sequence number is higher than your snapshot&apos;s, you cannot see it. This one
-            invariant is what makes the entire <FrankenJargon term="mvcc">MVCC</FrankenJargon>{" "}
-            system correct. Click through the tree below to watch{" "}
-            <FrankenJargon term="cow">copy-on-write</FrankenJargon> create new page versions while
-            the original tree stays intact for concurrent readers.
+            The visibility rule is one comparison: a page version committed after your snapshot is
+            invisible to you. Click through the tree below to watch{" "}
+            <FrankenJargon term="cow">copy-on-write</FrankenJargon> produce new page versions while
+            the old tree stays intact for readers that are still using it.
           </>
         }
       >
@@ -355,22 +422,21 @@ export default function HomePage() {
         icon="layers"
         eyebrow="Physical Layout"
         title="Pages All the Way Down"
+        status="live"
         kicker={
           <>
-            Every table, index, and row lives inside 4 KB{" "}
-            <FrankenJargon term="btree">B-tree pages</FrankenJargon>. A read operation
-            binary-searches from root to leaf; hot interior nodes use{" "}
-            <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> to resolve
-            in-memory addresses directly, skipping the page cache entirely.
+            Every table and index in a SQLite file is a{" "}
+            <FrankenJargon term="btree">B-tree</FrankenJargon> made of fixed-size pages, 4 KB by
+            default. FrankenSQLite uses exactly the same layout, down to the cell format and varint
+            encoding, which is why stock <code>sqlite3</code> can open its files. A lookup walks
+            from the root page to a leaf, binary-searching the cells on each page.
             <br />
             <br />
-            Writes never modify the original page. Instead, the engine creates a{" "}
-            <FrankenJargon term="cow">shadow copy</FrankenJargon>, applies the mutation to the copy,
-            and re-links parent pointers upward through the tree. Chain enough shadow copies
-            together and you get <FrankenJargon term="mvcc">MVCC</FrankenJargon>: multiple page
-            versions coexisting without conflict, each visible only to the transactions that should
-            see them. Step through the visualization below to watch the read path descend and the
-            write path fork.
+            Pages are also the unit of versioning. A write produces a new version of the leaf it
+            touches, plus any pages a split or merge changes, and{" "}
+            <FrankenJargon term="mvcc">MVCC</FrankenJargon> decides which transactions can see
+            which version. Step through below to watch the read path descend and the write path
+            fork.
           </>
         }
       >
@@ -509,26 +575,29 @@ export default function HomePage() {
         id="self-healing"
         icon="shield"
         eyebrow="Self-Healing Storage"
-        title="Corruption-Proof Pages"
+        title="Repairing the WAL"
+        status="partial"
+        statusNote={
+          <>
+            Native file-backed connections can write repair symbols to a <code>.wal-fec</code>{" "}
+            sidecar after each WAL fsync, and the decoder and repair routines exist. The standard
+            recovery path does not read the sidecar yet, so nothing is repaired automatically in
+            the default runtime.
+          </>
+        }
         kicker={
           <>
-            Bit rot is silent, cumulative, and inevitable. A single flipped bit in a{" "}
-            <FrankenJargon term="btree">B-tree</FrankenJargon> interior node can corrupt an entire
-            subtree of rows. Standard SQLite relies entirely on external tools (ZFS checksums,
-            periodic backups, manual <code>PRAGMA integrity_check</code>) to detect and repair this
-            damage after the fact.
+            A torn write or a flipped bit in the WAL can cost you committed transactions. SQLite
+            can detect that with frame checksums, but all it can do then is stop replaying at the
+            damaged frame.
             <br />
             <br />
-            FrankenSQLite builds recovery directly into the storage engine.{" "}
-            <FrankenJargon term="raptorq">RaptorQ fountain codes</FrankenJargon> generate{" "}
-            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> for every data page
-            at write time. When corruption is detected on read, whether from bit rot, disk error, or
-            cosmic ray,{" "}
-            <FrankenJargon term="inactivation-decoding">inactivation decoding</FrankenJargon>{" "}
-            reconstructs the original bytes from the surviving symbols. No backup restore. No
-            operator intervention. Automatic recovery, guaranteed within the configured overhead
-            budget. Click the healthy pages below to simulate corruption and watch the engine
-            reconstruct them in real time.
+            The plan is to store <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>{" "}
+            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> next to the WAL. A
+            fountain code turns K source symbols into as many extra symbols as you like, and almost
+            any K of them (plus a couple) are enough to rebuild the original. Corrupted frames can
+            then be reconstructed during recovery instead of discarded. The demo below shows the
+            idea on a handful of pages; the overhead and failure counts in it are illustrative.
           </>
         }
       >
@@ -543,24 +612,31 @@ export default function HomePage() {
       <SectionShell
         id="ecs-stream"
         icon="hardDrive"
-        eyebrow="Storage Engine"
-        title="Append-Only Durability"
+        eyebrow="Native Mode"
+        title="An Append-Only Commit Stream"
+        status="design"
+        statusNote={
+          <>
+            Native mode is under construction. Commit capsules, RaptorQ-encoded WAL objects and
+            native page groups are landing on <code>main</code>, but there is no stable switch for
+            it on <code>Connection</code>. Everything you run today uses standard SQLite files.
+          </>
+        }
         kicker={
           <>
-            The native <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon> format
-            rethinks how a database file is physically structured. Instead of overwriting pages
-            in-place (which requires careful journaling to avoid corruption on crash), it
-            continuously appends new <FrankenJargon term="cow">page versions</FrankenJargon> to the
-            end of a log, interleaved with <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>{" "}
-            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>.
+            SQLite&apos;s files are mutable: pages are overwritten in place, and journals exist to
+            make that safe across a crash. Native mode is FrankenSQLite&apos;s longer-term
+            alternative. The source of truth becomes an append-only stream of commit capsules,
+            each encoded as <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> symbols, and a
+            commit exists once its marker is durable. A normal <code>.db</code> file can still be
+            produced from the stream for compatibility.
             <br />
             <br />
-            The <FrankenJargon term="systematic-layout">systematic layout</FrankenJargon> places raw
-            source data first in each block, so normal reads are zero-copy with no decoding overhead
-            at all. The repair symbols sit alongside, inert until corruption is detected. You get
-            append-only crash safety and self-healing durability in a single file format. Press{" "}
-            <strong>Start DB Writers</strong> below to watch data pages and repair symbols stream to
-            disk, then click a page to corrupt it and observe automatic recovery.
+            The code is <FrankenJargon term="systematic-layout">systematic</FrankenJargon>: the
+            original bytes are stored as-is and the{" "}
+            <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> sit alongside them,
+            so ordinary reads don&apos;t decode anything. Press <strong>Start DB Writers</strong>{" "}
+            below for a simplified picture of data and repair symbols streaming to disk.
           </>
         }
       >
@@ -576,27 +652,27 @@ export default function HomePage() {
         id="conflict-resolution"
         icon="gitCompare"
         eyebrow="When Conflicts Happen"
-        title="Smart Conflict Resolution"
+        title="Serializable, Not Just Snapshot"
+        status="live"
         kicker={
           <>
-            Most concurrent writes land on different{" "}
-            <FrankenJargon term="btree">B-tree pages</FrankenJargon> and merge without effort. The
-            interesting case is when two transactions touch the same page. FrankenSQLite inspects
-            cell-level write sets: if the changed cells don&apos;t overlap, the engine merges them
-            automatically without aborting either transaction.
+            Snapshot isolation alone has a well-known hole called write skew. Two transactions each
+            read the same rows, each write a different one, and together they break a rule neither
+            broke alone, like two doctors both going off call because each saw the other was on.
+            Most MVCC layers for SQLite stop at snapshot isolation. FrankenSQLite doesn&apos;t.
             <br />
             <br />
-            When cells do overlap,{" "}
-            <FrankenJargon term="ssi">Serializable Snapshot Isolation</FrankenJargon> guarantees
-            correctness. The engine maintains a{" "}
-            <FrankenJargon term="witness-plane">Witness Plane</FrankenJargon>, a live dependency
-            graph that detects dangerous{" "}
-            <FrankenJargon term="rw-antidependency">read-write anti-dependencies</FrankenJargon>{" "}
-            using the <FrankenJargon term="cahill-fekete">Cahill-Fekete</FrankenJargon> cycle
-            detection rule. If a cycle forms, the pivot transaction is aborted. If no cycle exists,
-            both transactions commit. <FrankenJargon term="fcw">First-Committer-Wins</FrankenJargon>{" "}
-            ensures the outcome is deterministic and fair. Step through the two visualizations below
-            to see the Witness Plane build its graph and SSI validate a commit sequence.
+            At commit, it checks two things. First,{" "}
+            <FrankenJargon term="fcw">first-committer-wins</FrankenJargon>: if a page you wrote
+            changed since your snapshot, you lose and retry. Second,{" "}
+            <FrankenJargon term="ssi">Serializable Snapshot Isolation</FrankenJargon>: it tracks{" "}
+            <FrankenJargon term="rw-antidependency">read-write dependencies</FrankenJargon> between
+            concurrent transactions and aborts any transaction that would become the pivot of a
+            dangerous structure (the{" "}
+            <FrankenJargon term="cahill-fekete">Cahill/Fekete rule</FrankenJargon>, applied per
+            page). PostgreSQL uses the same idea at row granularity. If you can live with write
+            skew, <code>PRAGMA fsqlite.serializable = OFF</code> turns the second check off. The two
+            visualizations below show the dependency graph and a commit sequence being validated.
           </>
         }
       >
@@ -616,28 +692,32 @@ export default function HomePage() {
       <SectionShell
         id="safe-merge-ladder"
         icon="layers"
-        eyebrow="Automatic Resolution"
+        eyebrow="Same-Page Conflicts"
         title="The Safe Merge Ladder"
+        status="dormant"
+        statusNote={
+          <>
+            The rebase and patch-merge code lives in <code>fsqlite-mvcc</code> and is exercised by
+            tests, but the live commit path doesn&apos;t call it and the intent log isn&apos;t
+            populated during writes. Today every same-page conflict is resolved by abort and retry.
+          </>
+        }
         kicker={
           <>
-            C SQLite&apos;s answer to a write conflict is a single error code:{" "}
-            <code>SQLITE_BUSY</code>. The application retries, hopes for the best, and accepts the
-            throughput hit.
+            Page-level versioning has one obvious weakness: two transactions inserting different
+            rows into the same leaf page conflict, even though their changes don&apos;t really
+            overlap. Right now the loser gets <code>SQLITE_BUSY_SNAPSHOT</code> and retries.
             <br />
             <br />
-            FrankenSQLite&apos;s{" "}
-            <FrankenJargon term="safe-merge-ladder">Safe Merge Ladder</FrankenJargon> tries four
-            strategies in descending order of confidence before giving up. First:{" "}
-            <FrankenJargon term="deterministic-rebase">intent replay</FrankenJargon>, re-executing
-            the transaction&apos;s operation log against the updated{" "}
-            <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>. Second:{" "}
-            <FrankenJargon term="foata">FOATA reordering</FrankenJargon>, finding a canonical merge
-            of operations that are mathematically independent. Third: byte-level{" "}
-            <FrankenJargon term="xor-delta">XOR delta</FrankenJargon> merge, combining
-            non-overlapping byte changes on the same page. Only when all three strategies fail does
-            the engine abort and retry, which is the same behavior other databases start with as
-            their only option. Step through below to watch the XOR delta merge resolve a conflict
-            that would have caused <code>SQLITE_BUSY</code> in standard SQLite.
+            The <FrankenJargon term="safe-merge-ladder">safe merge ladder</FrankenJargon> is the
+            planned fix. Each writer keeps a log of what it meant to do at the B-tree level
+            (&ldquo;insert rowid 42&rdquo;, &ldquo;delete this index entry&rdquo;). On a same-page
+            conflict, the engine first tries to{" "}
+            <FrankenJargon term="deterministic-rebase">replay that intent</FrankenJargon> against the
+            winner&apos;s version of the page. If that doesn&apos;t apply, it tries a structured
+            patch that merges changes cell by cell. Raw byte-level XOR merging is deliberately ruled
+            out, because two byte-disjoint edits can still produce an invalid page. Only a conflict
+            that survives both rungs aborts. The demo below walks through a merge step by step.
           </>
         }
       >
@@ -654,22 +734,23 @@ export default function HomePage() {
         icon="activity"
         eyebrow="Observability"
         title="Transaction Telemetry"
+        status="live"
         kicker={
           <>
-            Debugging slow transactions in C SQLite means guessing. <code>EXPLAIN QUERY PLAN</code>{" "}
-            shows the plan, not the execution. There is no built-in way to see where wall-clock time
-            actually goes inside a running transaction.
+            With concurrent writers, a transaction that runs too long or reads too much hurts
+            everyone else: it holds an old{" "}
+            <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> open and raises the
+            odds of conflicts. So the engine exposes what its transactions are doing, through
+            ordinary PRAGMAs you can query while the workload runs.
             <br />
             <br />
-            FrankenSQLite&apos;s native{" "}
-            <FrankenJargon term="timeline-profiling">Timeline Profiler</FrankenJargon> records the
-            exact microsecond of every operation: <code>BEGIN</code>, each read, each write,
-            savepoints, rollbacks, and <code>COMMIT</code>. It emits Chrome DevTools-compatible JSON
-            traces for visual inspection and actively flags anti-patterns, including long-held{" "}
-            <FrankenJargon term="snapshot-isolation">snapshots</FrankenJargon>, excessive rollbacks,
-            and lock contention, before they reach production. Switch between the Healthy and
-            Anti-Pattern tabs below to see what clean and pathological transaction timelines look
-            like.
+            <code>fsqlite_txn_stats</code> gives lifecycle counters,{" "}
+            <code>fsqlite_transactions</code> lists the active ones with their age and read/write
+            activity, and <code>fsqlite_txn_advisor</code> flags long transactions, large read sets,
+            deep savepoint stacks and rollback pressure against thresholds you can tune.{" "}
+            <code>fsqlite_txn_timeline_json</code> returns the same picture as{" "}
+            <FrankenJargon term="timeline-profiling">JSON for timeline tools</FrankenJargon>. The
+            tabs below show what a healthy and an unhealthy timeline look like.
           </>
         }
       >
@@ -684,24 +765,26 @@ export default function HomePage() {
       <SectionShell
         id="safety"
         icon="shield"
-        eyebrow="Pure Safe Rust"
-        title="Zero Unsafe Blocks"
+        eyebrow="Safe Rust"
+        title="Unsafe in Two Crates, Not Twenty-Eight"
+        status="live"
         kicker={
           <>
-            C SQLite has shipped CVEs for buffer overflows, use-after-free, NULL pointer
-            dereferences, and type confusion bugs. These are structural consequences of writing
-            150,000+ lines of C without memory safety guarantees. Code review and fuzzing reduce the
-            rate; they cannot eliminate the category.
+            SQLite is some of the most heavily tested C in existence, and it still ships the
+            occasional memory-safety CVE: buffer overreads, use-after-free, integer overflow into a
+            bad allocation. That&apos;s what writing a database in C costs, even with an enormous
+            test budget.
             <br />
             <br />
-            FrankenSQLite has <FrankenJargon term="zero-unsafe">zero unsafe blocks</FrankenJargon>{" "}
-            across all 26 crates. <code>#[forbid(unsafe_code)]</code> on every crate makes buffer
-            overflows, use-after-free, and data races impossible at compile time.{" "}
-            <FrankenJargon term="newtype-pattern">Newtypes</FrankenJargon> wrap every ID type (
-            <code>PageNo</code>, <code>TxnId</code>, <code>FrameNo</code>) so the compiler rejects
-            category confusion at build time, not at 3 AM in production. The dashboard below shows
-            the safety guarantees; switch to the Rust tab in the newtype demo to see the compiler
-            catch a type mix-up that C would silently accept.
+            FrankenSQLite sets <code>unsafe_code = &quot;forbid&quot;</code> for the whole
+            workspace. Two crates override it locally: <code>fsqlite-vfs</code>, because mmap and
+            shared-memory regions need raw pointers, and the optional <code>fsqlite-c-api</code>,
+            because FFI does. The parser, planner, VDBE, B-tree, pager, WAL and MVCC code are safe
+            Rust, so those classes of bug can&apos;t appear there.{" "}
+            <FrankenJargon term="newtype-pattern">Newtypes</FrankenJargon> for{" "}
+            <code>PageNumber</code>, <code>TxnId</code>, <code>PageSize</code> and friends turn
+            mixed-up integers into compile errors. Switch to the Rust tab in the newtype demo to see
+            the compiler catch a mistake C would accept.
           </>
         }
       >
@@ -722,24 +805,32 @@ export default function HomePage() {
         id="encryption"
         icon="shield"
         eyebrow="Encryption at Rest"
-        title="Every Page, Locked Down"
+        title="Page Encryption"
+        status="dormant"
+        statusNote={
+          <>
+            Not usable yet. The implementation is in <code>fsqlite-pager</code>, but no{" "}
+            <code>PRAGMA key</code> or <code>rekey</code> reaches it. Because unknown PRAGMAs are
+            ignored (as in SQLite), <code>PRAGMA key = &apos;...&apos;</code> succeeds and the
+            database is still written in plain text.
+          </>
+        }
         kicker={
           <>
-            <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> encrypts each 4 KB{" "}
-            <FrankenJargon term="btree">B-tree page</FrankenJargon> independently with a unique
-            nonce. The <FrankenJargon term="dek-kek">DEK/KEK envelope</FrankenJargon> separates the
-            data encryption key from the key-encryption key, so changing the user passphrase rewraps
-            a single key rather than re-encrypting billions of pages. The page number is bound into
-            the <FrankenJargon term="aead">AEAD</FrankenJargon> authenticated data field, which
-            means an attacker cannot swap ciphertext between page slots; the integrity check rejects
-            it before decryption even begins.
+            Encrypting a SQLite database normally means buying SQLite&apos;s commercial SEE
+            extension or switching to a fork like SQLCipher. The design here builds it into the
+            pager. Each page is encrypted with{" "}
+            <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> using a fresh random
+            24-byte nonce, and the 16-byte authentication tag lives in the page&apos;s reserved
+            bytes.
             <br />
             <br />
-            Key derivation uses <FrankenJargon term="argon2id">Argon2id</FrankenJargon>, a
-            memory-hard KDF that resists GPU and ASIC brute-force attacks. Encryption is built into
-            the storage layer, not bolted on as a paid extension. Step through the pipeline below to
-            follow a plaintext page from passphrase derivation through nonce generation, AEAD
-            encryption, and authenticated verification.
+            Keys use an <FrankenJargon term="dek-kek">envelope</FrankenJargon>: a random data key
+            encrypts the pages, and a key derived from your passphrase with{" "}
+            <FrankenJargon term="argon2id">Argon2id</FrankenJargon> encrypts the data key. Changing
+            the passphrase re-wraps one 32-byte key instead of rewriting the file. Random nonces
+            avoid any global counter, so VM snapshot rollbacks and crashes can&apos;t cause nonce
+            reuse. Step through the pipeline below to follow a page through it.
           </>
         }
       >
@@ -758,20 +849,19 @@ export default function HomePage() {
         title="The Query Pipeline"
         kicker={
           <>
-            A SQL string enters FrankenSQLite&apos;s hand-written recursive descent parser, with no
-            Yacc, no generated code, and full control over error messages and recovery. The query
-            planner transforms the AST into a cost-based execution plan. The code generator compiles
-            that plan into <FrankenJargon term="vdbe">VDBE bytecode</FrankenJargon>: a compact
-            program of low-level opcodes that the virtual machine executes instruction by
-            instruction against the <FrankenJargon term="btree">B-tree</FrankenJargon> storage
-            layer.
+            SQL text goes through a hand-written lexer and parser (no Lemon, no generated grammar)
+            into a typed AST. Code generation turns that into{" "}
+            <FrankenJargon term="vdbe">VDBE bytecode</FrankenJargon>, the same model SQLite uses: a
+            small program of opcodes like <code>OpenRead</code>, <code>Rewind</code>,{" "}
+            <code>Column</code> and <code>ResultRow</code>, run by a register-based virtual machine
+            against the <FrankenJargon term="btree">B-tree</FrankenJargon> layer. FrankenSQLite has
+            190+ opcodes.
             <br />
             <br />
-            Every stage lives in a separate crate with its own tests and version number. Swap the
-            parser, keep the <FrankenJargon term="btree">B-tree</FrankenJargon> engine. Replace the
-            planner, keep the <FrankenJargon term="vdbe">VDBE</FrankenJargon>. This is what 26
-            composable crates buy you. Step through the bytecode execution below: watch the program
-            counter advance, registers fill, and rows materialize from opcodes.
+            Most table work takes this compiled path today. Some shapes (certain CTEs, views,
+            joins and window queries) still run through an interpreted compatibility executor while
+            their lowering is finished. Step through the program below to watch the program counter
+            advance and rows come out of the opcodes.
           </>
         }
       >
@@ -787,22 +877,26 @@ export default function HomePage() {
         id="code"
         icon="terminal"
         eyebrow="The Code"
-        title="Familiar API, Monster Power"
+        title="What the Code Looks Like"
         kicker={
           <>
-            A complete database operation in 28 lines. The API surface is what Rust developers
-            expect: <code>Connection</code>, <code>Statement</code>, <code>Row</code>. Everything
-            described on this page, <FrankenJargon term="mvcc">MVCC</FrankenJargon> concurrency,{" "}
-            <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> self-healing,{" "}
-            <FrankenJargon term="aead">page-level encryption</FrankenJargon>,{" "}
-            <FrankenJargon term="ssi">serializable isolation</FrankenJargon>, works transparently
-            beneath this interface. You write standard SQL and get the safety of Rust, the
-            concurrency of a server-grade database, and the simplicity of an embedded engine.
+            <code>Connection</code>, <code>prepare</code>, <code>execute</code>, rows of{" "}
+            <code>SqliteValue</code>. The one thing that will look unusual is that every call is
+            async: the engine runs on asupersync, so you build a runtime and{" "}
+            <code>.await</code> each operation. A <code>Connection</code> stays on the thread that
+            opened it; for concurrent writers, open one per thread.{" "}
+            <Link
+              href="/getting-started"
+              className="text-teal-400 hover:text-teal-300 underline underline-offset-2"
+            >
+              Getting started
+            </Link>{" "}
+            has the multi-writer version.
           </>
         }
       >
         <FrankenContainer withPulse={true} accentColor="#14b8a6" className="p-1 md:p-2 bg-black/40">
-          <RustCodeBlock code={codeExample} title="examples/quickstart.rs" />
+          <RustCodeBlock code={codeExample} title="src/main.rs" />
         </FrankenContainer>
       </SectionShell>
 
@@ -816,18 +910,16 @@ export default function HomePage() {
         title="Engine Comparison"
         kicker={
           <>
-            <FrankenJargon term="mvcc">Concurrent writers</FrankenJargon>,{" "}
-            <FrankenJargon term="raptorq">self-healing storage</FrankenJargon>, and{" "}
-            <FrankenJargon term="aead">encryption at rest</FrankenJargon> are all built into
-            FrankenSQLite&apos;s engine from the ground up. C SQLite requires paid add-ons (SEE for
-            encryption, session extension for replication) or external infrastructure for any of
-            these. libSQL adds concurrent writers but not self-healing. DuckDB brings analytical
-            concurrency but targets a different workload. FrankenSQLite combines concurrent{" "}
-            <FrankenJargon term="mvcc">MVCC</FrankenJargon> writers,{" "}
-            <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> error correction,{" "}
-            <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> encryption, and{" "}
-            <FrankenJargon term="zero-unsafe">zero unsafe code</FrankenJargon> in a single,
-            composable engine.
+            The closest relative is Turso, another Rust rewrite of SQLite. Its MVCC is opt-in,
+            versions rows, and stops at snapshot isolation, so write skew is allowed by design.
+            FrankenSQLite versions pages to keep the file format intact, runs concurrent by
+            default, and validates for full serializability.
+            <br />
+            <br />
+            Turso is ahead as a product, with bindings, sync and a mature simulation-testing setup.
+            C SQLite has 25 years of production use that nothing here can match. DuckDB solves a
+            different problem (analytics, columnar storage). The table describes FrankenSQLite as
+            it runs today, gaps included.
           </>
         }
       >
@@ -841,17 +933,15 @@ export default function HomePage() {
         id="crates"
         icon="blocks"
         eyebrow="Workspace"
-        title="26 Composable Crates"
+        title={`${engineSnapshot.workspaceCrates} Crates`}
         kicker={
           <>
-            Every architectural layer is a separate Rust crate with its own test suite, version
-            number, and documentation. Need just the{" "}
-            <FrankenJargon term="sql-dialect">SQL parser</FrankenJargon>? Depend on{" "}
-            <code>fsqlite-parser</code>. Need the <FrankenJargon term="btree">B-tree</FrankenJargon>{" "}
-            engine without the query layer? Depend on <code>fsqlite-btree</code>. Need{" "}
-            <FrankenJargon term="mvcc">MVCC</FrankenJargon> concurrency? Add{" "}
-            <code>fsqlite-mvcc</code>. Each crate compiles independently, so downstream projects
-            pull in only the layers they need, nothing more.
+            Each subsystem is its own crate, and Cargo enforces the boundaries: the parser
+            can&apos;t reach into the pager, and the B-tree can&apos;t call the planner. That keeps
+            the coupling honest and makes each piece testable on its own.{" "}
+            {engineSnapshot.publishedCrates} of the {engineSnapshot.workspaceCrates} are published
+            on crates.io, all at the same version. Most applications only need{" "}
+            <code>fsqlite</code>, which pulls in the rest.
           </>
         }
       >
@@ -878,6 +968,45 @@ export default function HomePage() {
       </SectionShell>
 
       {/* ================================================================
+          10B. HOW IT WAS BUILT
+          ================================================================ */}
+      <SectionShell
+        id="how-it-was-built"
+        icon="bug"
+        eyebrow="Process"
+        title="How It Was Built"
+        kicker={
+          <>
+            One person, a lot of coding agents, and eight months. Getting something that mostly
+            worked came quickly. Getting it correct under heavy concurrency, and competitive with a
+            C codebase tuned for 25 years, did not. Fixing one benchmark kept breaking another.
+            These are the habits that finally made progress stick.
+          </>
+        }
+      >
+        <div className="grid gap-6 md:grid-cols-2">
+          {buildStory.map((step, i) => (
+            <div
+              key={step.title}
+              className="rounded-2xl border border-white/5 bg-white/[0.02] p-6 md:p-8"
+            >
+              <div className="mb-3 flex items-center gap-3">
+                <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-500/10 text-sm font-black text-teal-400">
+                  {i + 1}
+                </span>
+                <h3 className="text-lg font-black text-white">{step.title}</h3>
+              </div>
+              <div className="text-sm leading-relaxed text-slate-400">{step.body}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-8 rounded-2xl border border-amber-400/20 bg-amber-400/[0.03] p-6 md:p-8">
+          <h3 className="mb-3 text-lg font-black text-white">{performanceNote.heading}</h3>
+          <p className="text-sm leading-relaxed text-slate-400">{performanceNote.body}</p>
+        </div>
+      </SectionShell>
+
+      {/* ================================================================
           11. DEVELOPMENT TIMELINE
           ================================================================ */}
       <SectionShell
@@ -887,13 +1016,17 @@ export default function HomePage() {
         title="The Build Log"
         kicker={
           <>
-            Five phases from foundation types to a full{" "}
-            <FrankenJargon term="sql-dialect">SQL engine</FrankenJargon> with{" "}
-            <FrankenJargon term="mvcc">MVCC</FrankenJargon> concurrency,{" "}
-            <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> self-healing, and a complete
-            extension ecosystem. Each phase builds on the crates established in the one before it,
-            maintaining <FrankenJargon term="zero-unsafe">zero unsafe code</FrankenJargon>{" "}
-            throughout.
+            From the first commit on {engineSnapshot.firstCommit} to v{engineSnapshot.version}.
+            The{" "}
+            <a
+              href={engineSnapshot.changelogUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-400 hover:text-teal-300 underline underline-offset-2"
+            >
+              engine changelog
+            </a>{" "}
+            has the release-by-release detail, known issues included.
           </>
         }
       >
@@ -923,12 +1056,12 @@ export default function HomePage() {
           </FrankenGlitch>
 
           <div className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-slate-400 md:text-xl font-medium">
-            Add FrankenSQLite to your Rust project with a single <code>cargo add</code>. Concurrent
-            writers, self-healing pages, and full SQL support from your first commit.
+            Point the <code>fsqlite</code> shell at a database you already have, or add the crate to
+            a Rust project. It&apos;s pre-1.0, so try it on something you can afford to break first.
           </div>
 
           {/* Install command */}
-          <div className="mx-auto mt-10 max-w-md">
+          <div className="mx-auto mt-10 max-w-2xl text-left">
             <div className="glow-green overflow-hidden rounded-2xl border border-teal-500/20 bg-black/60 shadow-xl shadow-teal-950/30">
               <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3">
                 <div className="flex gap-1.5">
@@ -940,10 +1073,26 @@ export default function HomePage() {
                   terminal
                 </span>
               </div>
-              <div className="px-6 py-5">
-                <div className="flex items-center gap-3 font-mono text-sm">
-                  <span className="select-none text-teal-500 font-bold">$</span>
-                  <code className="text-slate-200 font-bold tracking-tight">cargo add fsqlite</code>
+              <div className="px-6 py-5 space-y-4 font-mono text-[13px] overflow-x-auto">
+                <div>
+                  <div className="text-slate-600"># the shell (Linux / macOS)</div>
+                  <div className="flex items-start gap-3">
+                    <span className="select-none text-teal-500 font-bold">$</span>
+                    <code className="text-slate-200 font-bold tracking-tight whitespace-nowrap">
+                      curl -fsSL
+                      https://raw.githubusercontent.com/Dicklesworthstone/frankensqlite/main/install.sh
+                      | bash
+                    </code>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-slate-600"># the library (nightly Rust)</div>
+                  <div className="flex items-start gap-3">
+                    <span className="select-none text-teal-500 font-bold">$</span>
+                    <code className="text-slate-200 font-bold tracking-tight whitespace-nowrap">
+                      cargo add fsqlite &amp;&amp; cargo add asupersync --no-default-features
+                    </code>
+                  </div>
                 </div>
               </div>
             </div>
@@ -952,7 +1101,7 @@ export default function HomePage() {
           <div className="mt-10 flex flex-col items-center gap-6">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/5 bg-white/5 px-4 py-2 text-[10px] font-black uppercase tracking-widest text-slate-400">
               <Package className="h-3 w-3 text-teal-400" />
-              MIT License &middot; Free &amp; Open Source
+              Open source &middot; MIT with OpenAI/Anthropic rider
             </div>
 
             <Magnetic strength={0.1}>
@@ -993,9 +1142,9 @@ export default function HomePage() {
             </FrankenGlitch>
 
             <p className="mt-6 text-xl text-slate-400 font-medium leading-relaxed max-w-3xl">
-              This entire system was architected and built using the
-              <strong className="text-white"> AI Flywheel</strong>, an interactive ecosystem of
-              specialized autonomous agents.
+              FrankenSQLite is written by coding agents and steered by one person. The tools below
+              are what keep many agents working on the same codebase without stepping on
+              each other, and they&apos;re all open source.
             </p>
           </div>
 
@@ -1006,9 +1155,10 @@ export default function HomePage() {
           <div className="mt-20 grid lg:grid-cols-2 gap-16 items-center">
             <div className="space-y-8 text-left">
               <p className="text-lg text-slate-400 font-medium leading-relaxed">
-                FrankenSQLite is part of the FrankenSuite, a family of Rust infrastructure projects
-                including FrankenTUI, FrankenSQLite, and more. Each one pushes the boundaries of
-                what safe Rust can achieve.
+                FrankenSQLite is one of the FrankenSuite projects: ground-up Rust rewrites of
+                infrastructure people already depend on, including FrankenTUI, FrankenFS,
+                FrankenLibC and FrankenEngine. They share a runtime (asupersync), a habit of
+                checking themselves against the original, and a lot of the same tooling.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">

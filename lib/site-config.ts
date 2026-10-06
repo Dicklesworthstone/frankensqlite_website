@@ -1,8 +1,8 @@
 export const siteConfig = {
   name: "FrankenSQLite",
-  title: "FrankenSQLite — The Monster Database Engine for Rust",
+  title: "FrankenSQLite — SQLite, Rebuilt in Rust for Concurrent Writers",
   description:
-    "A clean-room Rust reimplementation of SQLite with MVCC concurrency, RaptorQ self-healing, and zero unsafe code. 26-crate workspace delivering the monster database engine.",
+    "A from-scratch Rust implementation of SQLite that opens your existing database files and lets several connections write at once, using page-level MVCC with serializable isolation.",
   url: "https://frankensqlite.com",
   github: "https://github.com/Dicklesworthstone/frankensqlite",
   social: {

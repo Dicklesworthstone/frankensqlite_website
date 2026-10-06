@@ -5,7 +5,12 @@ import dynamic from "next/dynamic";
 import FrankenGlitch from "@/components/franken-glitch";
 import { FrankenJargon } from "@/components/franken-jargon";
 import FrankenMermaidDiagram from "@/components/frankenmermaid-diagram";
-import { architectureLayers, crates } from "@/lib/content";
+import {
+  BUILD_STATUS,
+  type BuildStatus,
+  StatusBadge,
+} from "@/components/franken-elements";
+import { architectureLayers, crates, engineSnapshot } from "@/lib/content";
 
 const VersionChainExplorer = dynamic(() => import("@/components/viz/version-chain-explorer"), {
   ssr: false,
@@ -61,9 +66,18 @@ export default function ArchitecturePage() {
             </h1>
           </FrankenGlitch>
           <p className="text-lg md:text-xl text-slate-400 font-medium leading-relaxed max-w-2xl">
-            A 26-crate layered workspace where every module is independently testable, versioned,
-            and documented. Six architectural layers from foundation to integration.
+            How the {engineSnapshot.workspaceCrates} crates fit together, how concurrent writers
+            actually work, and which of the more ambitious ideas are running today versus still on
+            the bench. Every section is labeled.
           </p>
+          <div className="mt-8 flex flex-wrap gap-2">
+            {(Object.keys(BUILD_STATUS) as BuildStatus[]).map((status) => (
+              <span key={status} className="inline-flex items-center gap-2 text-xs text-slate-500">
+                <StatusBadge status={status} />
+                <span className="hidden sm:inline">{BUILD_STATUS[status].hint}</span>
+              </span>
+            ))}
+          </div>
         </div>
       </section>
 

@@ -13,6 +13,7 @@ import {
   Sparkles,
   Terminal,
 } from "lucide-react";
+import { StatusBadge } from "@/components/franken-elements";
 import { features } from "@/lib/content";
 
 const ICONS: Record<string, React.ElementType> = {
@@ -45,8 +46,11 @@ export default function FeatureGrid() {
             <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-teal-500/5 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100" />
 
             <div className="relative z-10 flex flex-col h-full">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400">
-                <Icon className="h-6 w-6" />
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400">
+                  <Icon className="h-6 w-6" />
+                </div>
+                <StatusBadge status={feature.status} />
               </div>
               <h3 className="mb-2 text-lg font-bold text-white tracking-tight">{feature.title}</h3>
               <div className="text-sm leading-relaxed text-slate-400 font-medium">

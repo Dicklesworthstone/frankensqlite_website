@@ -260,3 +260,56 @@ export function FrankenContainer({
     </div>
   );
 }
+
+export type BuildStatus = "live" | "opt-in" | "partial" | "dormant" | "design" | "harness";
+
+export const BUILD_STATUS: Record<BuildStatus, { label: string; hint: string; className: string }> =
+  {
+    live: {
+      label: "Live",
+      hint: "On by default in the current runtime",
+      className: "border-teal-400/40 bg-teal-400/10 text-teal-300",
+    },
+    "opt-in": {
+      label: "Opt-in",
+      hint: "Works today, but you have to turn it on",
+      className: "border-sky-400/40 bg-sky-400/10 text-sky-300",
+    },
+    partial: {
+      label: "Partial",
+      hint: "Works for some paths or configurations, not all",
+      className: "border-amber-400/40 bg-amber-400/10 text-amber-300",
+    },
+    dormant: {
+      label: "Built, not wired",
+      hint: "The code exists and is tested, but the default runtime does not call it yet",
+      className: "border-orange-400/40 bg-orange-400/10 text-orange-300",
+    },
+    design: {
+      label: "Design",
+      hint: "Specified in the design docs; implementation is incomplete",
+      className: "border-slate-400/40 bg-slate-400/10 text-slate-300",
+    },
+    harness: {
+      label: "Test harness",
+      hint: "Used to verify the engine, not part of the database runtime",
+      className: "border-violet-400/40 bg-violet-400/10 text-violet-300",
+    },
+  };
+
+export function StatusBadge({ status, className }: { status: BuildStatus; className?: string }) {
+  const meta = BUILD_STATUS[status];
+  return (
+    <span
+      title={meta.hint}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-black uppercase tracking-[0.18em] whitespace-nowrap",
+        meta.className,
+        className,
+      )}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden="true" />
+      {meta.label}
+    </span>
+  );
+}

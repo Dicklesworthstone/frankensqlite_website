@@ -59,7 +59,7 @@ const iconMap: Record<string, typeof Cpu> = {
 const STATUS = {
   mvcc: "live",
   timeTravel: "partial",
-  writeCoordinator: "design",
+  commitPath: "live",
   walIndex: "live",
   pageCache: "live",
   varint: "live",
@@ -138,7 +138,7 @@ export default function ArchitecturePage() {
           <div className="absolute top-0 right-1/4 w-[600px] h-[600px] bg-teal-500/5 rounded-full blur-[120px]" />
         </div>
         <div className="relative z-10 mx-auto max-w-4xl px-6 text-left">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/5 text-[10px] font-black uppercase tracking-[0.3em] text-teal-500 mb-8">
+          <div className="flex w-fit items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/5 text-[10px] font-black uppercase tracking-[0.3em] text-teal-500 mb-8">
             <Cpu className="h-3 w-3" />
             v{engineSnapshot.version} internals
           </div>
@@ -282,19 +282,21 @@ export default function ArchitecturePage() {
         <VersionChainExplorer />
       </Topic>
 
-      <Topic id="write-path" title="The Commit Path" status={STATUS.writeCoordinator}>
+      <Topic id="write-path" title="The Commit Path" status={STATUS.commitPath}>
         <Prose>
-          The design calls for a dedicated{" "}
-          <FrankenJargon term="write-coordinator">write coordinator</FrankenJargon>: connections
-          submit validated commits over a channel, and one task batches them into the WAL with a
-          two-fsync sequence. That is not how the live engine works yet. Today each connection runs
-          its own commit inside the registry guard described above, and the coordinator service
-          only exists as lifecycle scaffolding.
+          Statement execution and page changes run on each connection&apos;s own thread, in
+          parallel. Commit is where they meet: the committing connection takes a short
+          per-database guard, runs first-committer-wins and SSI validation, writes its frames
+          through the pager into the WAL, and publishes the result to the commit index, all before
+          releasing the guard. Holding it across all three steps closes a race where a peer could
+          claim a freshly allocated page before the allocation became visible.
         </Prose>
         <Prose last>
-          The visualization below shows the planned pipeline. Press <strong>Run Pipeline</strong>{" "}
-          to watch workers hand off page diffs to the coordinator&apos;s validate, append and flush
-          stages.
+          The design also calls for a dedicated{" "}
+          <FrankenJargon term="write-coordinator">write coordinator</FrankenJargon> that batches
+          commits and sequences fsyncs; today that service is scaffolding and the batching is
+          planned work. The visualization below models the live path, including validation
+          failures that send a connection back to retry.
         </Prose>
         <WriteCoordinator />
       </Topic>

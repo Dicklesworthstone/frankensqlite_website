@@ -19,7 +19,10 @@ interface WalFrame {
   id: number;
   writerId: number;
   pageNum: number;
+  /** Whether this frame is at or before the last commit frame (survives recovery) */
   committed: boolean;
+  /** Last frame of a transaction: its header records the database size, marking the commit */
+  commitFrame: boolean;
   /** Whether this frame has been checkpointed */
   flushed: boolean;
   /** Timestamp for animation ordering */
@@ -30,7 +33,7 @@ interface WriterDef {
   id: number;
   name: string;
   color: string;
-  /** Frames per second */
+  /** Commits per second (illustrative) */
   rate: number;
 }
 
@@ -49,19 +52,19 @@ const MAX_WAL_FRAMES = 20;
 
 const CHECKPOINT_STEPS: Step[] = [
   {
-    label: "WAL threshold reached",
+    label: "WAL passes the checkpoint threshold",
     description:
-      "The WAL has accumulated enough frames. Time to flush changes back to the main database file.",
+      "The WAL has grown past the auto-checkpoint threshold (see PRAGMA wal_autocheckpoint), or the application ran PRAGMA wal_checkpoint.",
   },
   {
-    label: "Frames transfer to main DB",
+    label: "Frames copied to the database file",
     description:
-      "Each committed WAL frame is written back to its corresponding page slot in the main database file.",
+      "For each page, the newest committed frame is written back to that page's slot in the main database file. Frames that an open reader's snapshot still needs are left until that reader finishes.",
   },
   {
     label: "Checkpoint complete",
     description:
-      "WAL recycled. All changes are now durable in the main database. The WAL is empty and ready for new writes.",
+      "The database file now holds the latest committed pages. The changes were already durable in the WAL; once no reader needs the old frames, the WAL can be reset and reused from the start.",
   },
 ];
 
@@ -71,23 +74,24 @@ const CHECKPOINT_STEPS: Step[] = [
 
 const RECOVERY_STEPS: Step[] = [
   {
-    label: "Normal writes in progress",
-    description: "Multiple writers are appending frames to the WAL concurrently.",
+    label: "Commits in progress",
+    description:
+      "Transactions append their frames to the end of the WAL, one transaction at a time. The last frame of each transaction is a commit frame: its header records the database size, which marks the commit boundary.",
   },
   {
     label: "CRASH!",
     description:
-      "Power failure mid-write. The process terminates unexpectedly with uncommitted data in the WAL.",
+      "Power fails while the fourth transaction is still writing its frames. Its commit frame never reaches the disk.",
   },
   {
     label: "WAL scan",
     description:
-      "On restart, the WAL is scanned. Committed frames (green) have valid checksums. Uncommitted frames (red) are incomplete.",
+      "On restart, the engine reads the WAL from the start, checking each frame's salt and running checksum, and finds the last valid commit frame. Frames after it (red) belong to a transaction that never finished.",
   },
   {
     label: "Database consistent",
     description:
-      "Committed frames are replayed into the main database. Uncommitted frames are discarded. The database is consistent. No data loss.",
+      "Frames up to that commit frame are kept and the WAL index is rebuilt from them; a later checkpoint copies them into the database file. Frames after it are discarded. Transactions whose commit frame reached disk survive; the interrupted one is gone, as if it never started.",
   },
 ];
 
@@ -170,14 +174,20 @@ function WalFrameBlock({
         className="h-2 w-2 rounded-full flex-shrink-0"
         style={{ backgroundColor: writer.color }}
       />
+      <span className="text-slate-600">#{frame.id + 1}</span>
       <span className="text-slate-400">P{frame.pageNum}</span>
+      {frame.commitFrame && (
+        <span className="rounded border border-teal-500/30 px-1 text-[8px] font-bold uppercase tracking-wider text-teal-400">
+          commit
+        </span>
+      )}
       {showStatus && (
         <span
           className={`ml-auto text-[9px] font-bold ${
             showStatus === "committed" ? "text-green-400" : "text-red-400"
           }`}
         >
-          {showStatus === "committed" ? "OK" : "LOST"}
+          {showStatus === "committed" ? "kept" : "discarded"}
         </span>
       )}
     </motion.div>
@@ -192,6 +202,7 @@ function NormalMode() {
   const prefersReducedMotion = useReducedMotion();
   const [frames, setFrames] = useState<WalFrame[]>([]);
   const [tps, setTps] = useState(0);
+  const [progress, setProgress] = useState<number[]>([0, 0, 0]);
   const nextIdRef = useRef(0);
   const accumulatorRef = useRef<number[]>([0, 0, 0]);
   const tpsWindowRef = useRef<number[]>([]);
@@ -199,25 +210,36 @@ function NormalMode() {
   const onTick = useCallback((deltaMs: number) => {
     const deltaSec = deltaMs / 1000;
 
+    // Page work overlaps across writers. When a writer's transaction is ready,
+    // its commit appends all of its frames to the single WAL as one contiguous
+    // group, ending with a commit frame. Commits are applied one after another.
     const newFrames: WalFrame[] = [];
+    let commits = 0;
     WRITERS.forEach((writer, idx) => {
       accumulatorRef.current[idx] += deltaSec * writer.rate;
       while (accumulatorRef.current[idx] >= 1) {
         accumulatorRef.current[idx] -= 1;
-        const id = nextIdRef.current++;
-        newFrames.push({
-          id,
-          writerId: writer.id,
-          pageNum: Math.floor(Math.random() * DB_PAGES),
-          committed: true,
-          flushed: false,
-          addedAt: Date.now(),
-        });
+        commits++;
+        const frameCount = 1 + Math.floor(Math.random() * 2);
+        const first = Math.floor(Math.random() * DB_PAGES);
+        for (let f = 0; f < frameCount; f++) {
+          newFrames.push({
+            id: nextIdRef.current++,
+            writerId: writer.id,
+            pageNum: (first + f * 3) % DB_PAGES,
+            committed: true,
+            commitFrame: f === frameCount - 1,
+            flushed: false,
+            addedAt: Date.now(),
+          });
+        }
       }
     });
+    setProgress([...accumulatorRef.current]);
 
     if (newFrames.length > 0) {
-      tpsWindowRef.current.push(Date.now());
+      const now = Date.now();
+      for (let c = 0; c < commits; c++) tpsWindowRef.current.push(now);
 
       setFrames((prev) => {
         const combined = [...prev, ...newFrames];
@@ -226,7 +248,7 @@ function NormalMode() {
       });
     }
 
-    // Update TPS every ~500ms
+    // Commits per second over a 2 s window
     const now = Date.now();
     tpsWindowRef.current = tpsWindowRef.current.filter((t) => now - t < 2000);
     setTps(Math.round(tpsWindowRef.current.length / 2));
@@ -240,6 +262,7 @@ function NormalMode() {
     accumulatorRef.current = [0, 0, 0];
     tpsWindowRef.current = [];
     setTps(0);
+    setProgress([0, 0, 0]);
     sim.reset();
   }, [sim]);
 
@@ -266,16 +289,37 @@ function NormalMode() {
 
         <div className="ml-auto flex items-center gap-4 text-[10px] font-mono">
           <span className="text-slate-500">
-            TPS: <span className="text-teal-400 font-bold">{tps}</span>
+            Commits/s (sim): <span className="text-teal-400 font-bold">{tps}</span>
           </span>
           <span className="text-slate-500">
             WAL:{" "}
             <span className="text-teal-400 font-bold">
               {frames.filter((f) => !f.flushed).length}
             </span>{" "}
-            frames
+            frames shown
           </span>
         </div>
+      </div>
+
+      {/* Writers' private page work (overlaps) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {WRITERS.map((w, idx) => (
+          <div key={w.id} className="rounded-md border border-white/5 bg-white/[0.02] px-2 py-1.5">
+            <div className="flex items-center gap-1.5 text-[9px] font-mono text-slate-500 mb-1">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: w.color }} />
+              {w.name}: page work
+            </div>
+            <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(progress[idx] ?? 0, 1) * 100}%`,
+                  backgroundColor: w.color,
+                }}
+              />
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Main layout */}
@@ -288,6 +332,9 @@ function NormalMode() {
               Main DB File
             </span>
           </div>
+          <p className="mb-2 text-[9px] font-mono text-slate-600">
+            Unchanged until a checkpoint. Lit pages have a newer copy in the WAL.
+          </p>
           <div className="grid grid-cols-2 gap-1.5">
             {Array.from({ length: DB_PAGES }, (_, i) => {
               // Find most recent frame for this page
@@ -312,7 +359,7 @@ function NormalMode() {
           <div className="flex items-center gap-2 mb-3">
             <Zap className="h-3.5 w-3.5 text-teal-500" />
             <span className="text-[10px] font-black uppercase tracking-wider text-teal-500">
-              Write-Ahead Log
+              Write-Ahead Log (one file, commit order)
             </span>
             <div className="ml-auto flex items-center gap-3">
               {WRITERS.map((w) => (
@@ -344,7 +391,7 @@ function NormalMode() {
             </AnimatePresence>
             {frames.filter((f) => !f.flushed).length === 0 && (
               <div className="text-xs text-slate-600 text-center py-8 font-mono">
-                WAL empty — press Play
+                WAL empty. Press Play.
               </div>
             )}
           </div>
@@ -368,9 +415,10 @@ function CheckpointMode() {
     () =>
       Array.from({ length: 6 }, (_, i) => ({
         id: i,
-        writerId: i % 3,
+        writerId: [0, 0, 1, 2, 2, 0][i],
         pageNum: [0, 3, 5, 1, 7, 4][i],
         committed: true,
+        commitFrame: [false, true, true, false, true, true][i],
         flushed: step >= 2,
         addedAt: 0,
       })),
@@ -433,7 +481,7 @@ function CheckpointMode() {
                 animate={{ opacity: 1 }}
                 className="text-xs text-emerald-400/60 text-center py-8 font-mono"
               >
-                WAL recycled — checkpoint complete
+                Checkpoint complete. The WAL can be reused once no reader needs it.
               </motion.div>
             )}
           </div>
@@ -454,15 +502,64 @@ function RecoveryMode() {
   const [step, setStep] = useState(0);
   const onStepChange = useCallback((s: number) => setStep(s), []);
 
-  // Demo frames — last 2 are uncommitted
-  const frames = useMemo(
+  // Demo frames: three complete transactions, then a fourth (Writer B) whose
+  // commit frame never reached disk. Its frames come after the last commit frame.
+  const frames = useMemo<WalFrame[]>(
     () => [
-      { id: 0, writerId: 0, pageNum: 2, committed: true, flushed: false, addedAt: 0 },
-      { id: 1, writerId: 1, pageNum: 5, committed: true, flushed: false, addedAt: 0 },
-      { id: 2, writerId: 0, pageNum: 0, committed: true, flushed: false, addedAt: 0 },
-      { id: 3, writerId: 2, pageNum: 7, committed: true, flushed: false, addedAt: 0 },
-      { id: 4, writerId: 1, pageNum: 3, committed: false, flushed: false, addedAt: 0 },
-      { id: 5, writerId: 2, pageNum: 6, committed: false, flushed: false, addedAt: 0 },
+      {
+        id: 0,
+        writerId: 0,
+        pageNum: 2,
+        committed: true,
+        commitFrame: false,
+        flushed: false,
+        addedAt: 0,
+      },
+      {
+        id: 1,
+        writerId: 0,
+        pageNum: 5,
+        committed: true,
+        commitFrame: true,
+        flushed: false,
+        addedAt: 0,
+      },
+      {
+        id: 2,
+        writerId: 2,
+        pageNum: 0,
+        committed: true,
+        commitFrame: true,
+        flushed: false,
+        addedAt: 0,
+      },
+      {
+        id: 3,
+        writerId: 0,
+        pageNum: 7,
+        committed: true,
+        commitFrame: true,
+        flushed: false,
+        addedAt: 0,
+      },
+      {
+        id: 4,
+        writerId: 1,
+        pageNum: 3,
+        committed: false,
+        commitFrame: false,
+        flushed: false,
+        addedAt: 0,
+      },
+      {
+        id: 5,
+        writerId: 1,
+        pageNum: 6,
+        committed: false,
+        commitFrame: false,
+        flushed: false,
+        addedAt: 0,
+      },
     ],
     [],
   );
@@ -485,7 +582,9 @@ function RecoveryMode() {
             className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 flex items-center gap-3"
           >
             <AlertTriangle className="h-4 w-4 text-red-400 flex-shrink-0" />
-            <span className="text-xs font-bold text-red-300">CRASH — power failure mid-write</span>
+            <span className="text-xs font-bold text-red-300">
+              CRASH: power failure before the fourth transaction&apos;s commit frame
+            </span>
           </motion.div>
         )}
         {showRecovered && (
@@ -496,7 +595,7 @@ function RecoveryMode() {
           >
             <Database className="h-4 w-4 text-emerald-400 flex-shrink-0" />
             <span className="text-xs font-bold text-emerald-300">
-              Database consistent — 4 frames replayed, 2 discarded
+              Consistent: 3 transactions (4 frames) kept, 2 frames after the last commit discarded
             </span>
           </motion.div>
         )}
@@ -553,9 +652,10 @@ export default function WalLanes() {
 
   return (
     <VizContainer
-      title="WAL Lane Visualizer"
-      description="See how the Write-Ahead Log works, with per-writer lanes, checkpoints, and crash recovery."
+      title="WAL Visualizer"
+      description="See how the write-ahead log works: commits append frames to one log, checkpoints copy them back into the database file, and crash recovery keeps only complete transactions."
       minHeight={460}
+      status="live"
     >
       <div className="p-4 md:p-6 space-y-4">
         {/* Mode tabs */}
@@ -595,49 +695,55 @@ export default function WalLanes() {
         whatItIs={
           <>
             <div>
-              You are looking at the <FrankenJargon term="wal">Write-Ahead Log (WAL)</FrankenJargon>
-              . When transactions commit, they don&apos;t write directly to the main database file
-              (which would be slow and block readers). Instead, they append their changes
-              sequentially to the WAL.
+              The <FrankenJargon term="wal">write-ahead log (WAL)</FrankenJargon>. Committing
+              transactions don&apos;t change the main database file directly. They append the new
+              contents of each page they changed, one frame per page, to the end of the WAL.
+              FrankenSQLite uses SQLite&apos;s own WAL format, so stock SQLite can read what it
+              writes.
             </div>
             <p>
-              Use the tabs to switch between Normal operations, Checkpointing, and Crash Recovery.
+              Use the tabs to switch between normal operation, checkpointing, and crash recovery.
+              Rates and frame counts here are illustrative.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              In <strong>Normal</strong> mode, click Play to watch multiple writers append to the
-              log simultaneously. Notice how each writer gets its own color-coded
-              &ldquo;lane.&rdquo; No blocking!
+              In <strong>Normal</strong> mode, click Play. The writers do their page work at the
+              same time (the bars at the top), but frames reach the WAL one transaction at a time,
+              during each writer&apos;s commit step, and every transaction ends with a commit
+              frame.
             </p>
             <p>
-              In <strong>Checkpoint</strong> mode, use the stepper to see how a background thread
-              safely copies older frames from the <FrankenJargon term="wal">WAL</FrankenJargon> back
-              into the main database file without interrupting active queries.
+              In <strong>Checkpoint</strong> mode, step through how committed frames are copied
+              from the <FrankenJargon term="wal">WAL</FrankenJargon> back into the main database
+              file, skipping any that an open reader still needs.
             </p>
             <p>
-              In <strong>Crash Recovery</strong> mode, step through to see what happens when the
-              power dies. The engine simply scans the WAL, verifies the checksums, and discards any
-              frames that weren&apos;t fully committed.
+              In <strong>Crash Recovery</strong> mode, see what a restart does after a power loss:
+              it checks frame checksums, keeps everything up to the last valid commit frame, and
+              discards the rest.
             </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              In standard SQLite, the <FrankenJargon term="wal">WAL</FrankenJargon> serializes all
-              writes through a single thread, limiting throughput to one writer at a time.
-              FrankenSQLite&apos;s <FrankenJargon term="mvcc">MVCC</FrankenJargon> architecture
-              allows multiple writers to stream into the WAL concurrently.
+              Appending to a log is what makes commits atomic and crash-safe. The main file only
+              changes during a checkpoint, from frames that are already committed, so a crash in
+              the middle of a commit cannot leave it half-updated. Readers find the newest
+              committed copy of a page through an index instead of scanning the log. FrankenSQLite
+              keeps its own in-process page map for this and, on Unix, also maintains
+              SQLite&apos;s shared <FrankenJargon term="wal-index">WAL index</FrankenJargon> (the{" "}
+              <code>-shm</code> file) so stock SQLite processes can follow along.
             </p>
             <p>
-              By strictly enforcing an append-only design, this approach achieves two properties:
-              sequential disk I/O that saturates modern NVMe bandwidth, and crash-safe durability
-              where a sudden power loss never corrupts the main database file. The{" "}
-              <FrankenJargon term="wal-index">WAL index</FrankenJargon> in shared memory enables
-              checkpoint operations to run in the background without blocking readers.
+              Both standard SQLite and FrankenSQLite have one WAL per database, appended in commit
+              order. The difference is the work before commit: FrankenSQLite writers on different
+              pages prepare their changes at the same time. The pager also contains an
+              experimental path that stages WAL appends in per-thread lanes; it is off by default
+              and not shown here.
             </p>
           </>
         }

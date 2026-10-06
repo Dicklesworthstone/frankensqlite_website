@@ -417,6 +417,7 @@ export default function VersionChainExplorer() {
         </>
       }
       minHeight={480}
+      status="live"
     >
       <div className="p-3 md:p-6">
         {/* Main layout: sidebar + B-tree */}
@@ -509,13 +510,14 @@ export default function VersionChainExplorer() {
               sidebar shows active transactions with their{" "}
               <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon> boundaries. The
               center shows <FrankenJargon term="btree">B-tree</FrankenJargon> leaf pages with
-              stacked version badges, each representing a committed page state.
+              stacked version badges, one per version of the page (committed, or still private to
+              the writer that made it).
             </p>
             <p>
               The key concept is visibility: each transaction sees only the page versions that were
               committed before its <FrankenJargon term="snapshot-isolation">snapshot</FrankenJargon>{" "}
-              started. Versions committed after that point are invisible, even if they exist on
-              disk.
+              was taken. Versions committed after that point are invisible to it, even though they
+              exist.
             </p>
           </>
         }
@@ -523,28 +525,33 @@ export default function VersionChainExplorer() {
           <>
             <p>
               Step through the 7 stages using the controls. Watch Transaction A start and capture a
-              snapshot, then Transaction B start with a later snapshot. When B writes to a page and
-              commits, step forward to see A read the same page; it still sees the old version
+              snapshot, then Transaction B start with the same snapshot. When B writes to a page
+              and commits, step forward to see A read the same page; it still sees the old version
               because B&apos;s commit happened after A&apos;s snapshot.
             </p>
             <p>
               Pay attention to the visibility callouts that show the commit sequence number
-              comparison. This single comparison is the entire{" "}
-              <FrankenJargon term="mvcc">MVCC</FrankenJargon> visibility rule.
+              comparison. Deciding whether one version is visible takes a single comparison; the
+              reader then uses the newest version that passes it.
             </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              This mechanism is what allows multiple concurrent readers and writers to coexist
-              without locks. Long-running analytical queries see a stable, consistent view of the
-              database while OLTP transactions continue writing in parallel. Unlike C SQLite, where
-              a writer blocks all readers (or vice versa in WAL mode for writes),
-              FrankenSQLite&apos;s <FrankenJargon term="mvcc">MVCC</FrankenJargon> gives every
-              transaction its own isolated view of the world.{" "}
-              <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> exploit the same
-              mechanism to read historical snapshots on demand.
+              Readers never wait for writers and take no page locks: a long-running query keeps a
+              stable, consistent view while other transactions commit. C SQLite in WAL mode already
+              gives readers that, but it allows only one writer at a time. Page version chains are
+              what let several FrankenSQLite writers each build new versions of different pages
+              at once; writers that change the same page still conflict, and one retries.
+            </p>
+            <p>
+              Old versions are not kept forever. Once no open snapshot can see a version, it is
+              reclaimed. That is why this chain is not a history store.{" "}
+              <FrankenJargon term="time-travel">Time-travel queries</FrankenJargon> (
+              <code>FOR SYSTEM_TIME AS OF</code>) use a separate ring of up to 256 snapshots
+              captured at each commit, and today they work only on <code>:memory:</code>{" "}
+              databases; file-backed databases return an error.
             </p>
           </>
         }

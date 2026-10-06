@@ -24,6 +24,16 @@ const LANE_H = 28;
 const LOCK_X = 160;
 const TREE_X = 250;
 const PAGE_COUNT = 6;
+/** Page 0 is the "hot" page that the Same-page slider steers writers toward. */
+const HOT_PAGE = 0;
+
+// Illustrative timings (seconds). Both engines get the same amount of work per
+// transaction: page work, then a short commit step. Only the locking differs.
+const PAGE_WORK_S = 1.0;
+const COMMIT_S = 0.2;
+const RETRY_PAUSE_S = 0.5;
+const THINK_S = 0.6;
+const APPROACH_SPEED = 80;
 
 // ---- Types -------------------------------------------------------------------
 
@@ -32,8 +42,18 @@ interface WriterState {
   color: string;
   x: number;
   targetPage: number;
-  state: "queued" | "writing" | "done" | "conflict";
+  /**
+   * queued: walking up to start a transaction
+   * writing: page work (left: under the global write lock; right: private page versions)
+   * waiting: page work finished, waiting for the commit step (right side only)
+   * committing: inside the serialized commit step (right side only)
+   * conflict: lost first-committer-wins on its page; will retry (right side only)
+   * done: committed; short pause before the next transaction
+   */
+  state: "queued" | "writing" | "waiting" | "committing" | "conflict" | "done";
   progress: number;
+  /** Version of targetPage this writer's snapshot saw when it started (right side). */
+  basePageVersion: number;
 }
 
 interface SimState {
@@ -41,6 +61,9 @@ interface SimState {
   right: WriterState[];
   completedLeft: number;
   completedRight: number;
+  retriesRight: number;
+  /** Committed version counter per page (right side), used for the FCW check. */
+  pageVersions: number[];
   elapsed: number;
 }
 
@@ -50,7 +73,7 @@ export default function MvccRace() {
   const { playSfx } = useSite();
   const prefersReducedMotion = useReducedMotion();
   const [writerCount, setWriterCount] = useState(4);
-  const [conflictProb, setConflictProb] = useState(20);
+  const [conflictProb, setConflictProb] = useState(25);
   const [isRunning, setIsRunning] = useState(false);
   const [speed, setSpeed] = useState(1);
   const rafRef = useRef<number>(0);
@@ -117,18 +140,19 @@ export default function MvccRace() {
             </div>
             <div className="text-xs font-bold text-slate-400">Single Writer Lock</div>
             <p className="mt-2 text-xs text-slate-500 leading-relaxed">
-              Only one writer at a time. Others wait at WAL_WRITE_LOCK, causing contention under
-              concurrent load.
+              One writer at a time. A writer holds WAL_WRITE_LOCK from its first write until it
+              commits; other writers wait or get SQLITE_BUSY.
             </p>
           </div>
           <div className="rounded-xl border border-teal-500/20 bg-black/40 p-3 md:p-4">
             <div className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-500">
               FrankenSQLite
             </div>
-            <div className="text-xs font-bold text-teal-400/80">MVCC Parallel Writers</div>
+            <div className="text-xs font-bold text-teal-400/80">Page-Level MVCC Writers</div>
             <p className="mt-2 text-xs text-slate-400 leading-relaxed">
-              Multiple writers operate in parallel on separate pages via MVCC. Conflicts resolved by
-              First-Committer-Wins.
+              Writers that touch different pages do their page work at the same time, then pass
+              through a short commit step one at a time. If two writers change the same page, the
+              first to commit wins and the other gets SQLITE_BUSY_SNAPSHOT and retries.
             </p>
           </div>
         </div>
@@ -154,14 +178,27 @@ export default function MvccRace() {
         {/* Right: FrankenSQLite */}
         <Panel
           label="FrankenSQLite"
-          sublabel="MVCC Parallel Writers"
+          sublabel="Page-Level MVCC Writers"
           tps={rightTps}
           accent={true}
           svgH={svgH}
+          footer={
+            <>
+              Same-page retries (SQLITE_BUSY_SNAPSHOT):{" "}
+              <span className="font-bold text-amber-400 tabular-nums">{state.retriesRight}</span>
+            </>
+          }
         >
           <MultiWriterViz writers={state.right} count={writerCount} svgH={svgH} />
         </Panel>
       </div>
+
+      <p className="text-[11px] text-slate-500 leading-relaxed">
+        A toy model with made-up timings, not a benchmark. Each transaction does the same amount of
+        page work on both sides; only the locking differs. On the right, writers on different pages
+        overlap, the commit step (the COMMIT box) admits one writer at a time, and a writer whose
+        page changed under it after its snapshot was taken loses first-committer-wins and retries.
+      </p>
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-4">
@@ -198,7 +235,7 @@ export default function MvccRace() {
           width="w-24 md:w-20"
         />
         <SliderControl
-          label={`Conflict: ${conflictProb}%`}
+          label={`Same page: ${conflictProb}%`}
           min={0}
           max={100}
           step={5}
@@ -221,12 +258,13 @@ export default function MvccRace() {
         whatItIs={
           <>
             <p>
-              This is a live race between C SQLite (the standard implementation) and FrankenSQLite
-              under a heavy, multi-writer workload.
+              A simplified simulation of several connections writing to one database at the same
+              time, once with C SQLite&apos;s locking and once with FrankenSQLite&apos;s.
             </p>
             <p>
-              Each animated bar represents a database transaction trying to write data. The blocks
-              falling into the bars are the individual rows they are writing.
+              Each dot is one write transaction. On the right, the boxes are B-tree pages and the
+              dashed line shows which page a writer is changing. The commits-per-second figures
+              come from this toy model, not from measurements.
             </p>
           </>
         }
@@ -236,31 +274,40 @@ export default function MvccRace() {
               Click <strong>Play</strong> to start the simulation.
             </p>
             <p>
-              Watch the <strong>C SQLite</strong> side. Notice how only one transaction can make
-              progress at a time. The others turn amber and show <code>SQLITE_BUSY</code> because
-              they are blocked by a global write lock.
+              On the <strong>C SQLite</strong> side, one writer holds the WAL write lock from its
+              first write until it commits. The others wait at the lock (shown as{" "}
+              <code>BUSY</code>); a real application either waits through a busy timeout or gets{" "}
+              <code>SQLITE_BUSY</code>.
             </p>
             <div>
-              Now watch the <strong>FrankenSQLite</strong> side. All four transactions are moving
-              forward simultaneously because <FrankenJargon term="mvcc">MVCC</FrankenJargon>{" "}
-              isolates their writes at the <FrankenJargon term="btree">page level</FrankenJargon>.
+              On the <strong>FrankenSQLite</strong> side, writers on different pages do their page
+              work at the same time, because <FrankenJargon term="mvcc">MVCC</FrankenJargon> gives
+              each one private new versions of the{" "}
+              <FrankenJargon term="btree">pages</FrankenJargon> it changes. Commit is still a short
+              step taken one writer at a time.
             </div>
+            <p>
+              Raise <strong>Same page</strong> to send more transactions to page 0. When two
+              writers changed the same page, the first to commit wins and the other gets{" "}
+              <code>SQLITE_BUSY_SNAPSHOT</code> and retries with a fresh snapshot. (If the first
+              writer still holds that page&apos;s lock, the second gets <code>SQLITE_BUSY</code>{" "}
+              immediately instead of waiting. The model only draws the commit-time case.)
+            </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              Applications serving thousands of concurrent users need concurrent write access.
-              Standard SQLite serializes all writes behind a single global lock; when multiple
-              connections attempt simultaneous writes, they receive <code>SQLITE_BUSY</code> errors,
-              causing queueing delays and application-level timeouts.
+              Standard SQLite allows one writer at a time. Adding threads or cores does not widen
+              the write path, so busy applications end up funneling writes through a single queue
+              or handling <code>SQLITE_BUSY</code>.
             </p>
             <p>
-              FrankenSQLite removes this global lock entirely. By using{" "}
-              <FrankenJargon term="mvcc">MVCC</FrankenJargon>, it achieves substantially higher
-              write throughput, supporting hundreds of concurrent writers with per-page conflict
-              granularity rather than requiring a migration to PostgreSQL or MySQL for server
-              workloads.
+              FrankenSQLite keeps the SQLite file format but versions individual pages, so writers
+              that touch different pages stop waiting on each other while they work. Coordination
+              does not disappear: commit has a short serialized step, and writers that change the
+              same page conflict and one of them has to retry. How much this helps depends on how
+              often your writers land on the same pages, so measure it on your own workload.
             </p>
           </>
         }
@@ -277,6 +324,7 @@ function Panel({
   tps,
   accent,
   svgH,
+  footer,
   children,
 }: {
   label: string;
@@ -284,6 +332,7 @@ function Panel({
   tps: number;
   accent: boolean;
   svgH: number;
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   const borderClass = accent ? "border-teal-500/20" : "border-white/5";
@@ -304,13 +353,14 @@ function Panel({
         <div className="text-right">
           <div className={`text-lg font-black tabular-nums ${tpsColor}`}>{tps}</div>
           <div className={`text-[8px] font-black uppercase tracking-widest ${tpsSub}`}>
-            writes/sec
+            commits/s (sim)
           </div>
         </div>
       </div>
       <svg viewBox={`0 0 320 ${svgH}`} className="w-full" style={{ minHeight: svgH }}>
         {children}
       </svg>
+      {footer && <div className="mt-2 text-[10px] text-slate-500">{footer}</div>}
     </div>
   );
 }
@@ -481,8 +531,11 @@ function MultiWriterViz({
   svgH: number;
 }) {
   const active = writers.slice(0, count);
-  const pageH = Math.min(LANE_H - 4, (svgH - 30) / PAGE_COUNT - 2);
+  const pageH = Math.min(LANE_H - 4, (svgH - 50) / PAGE_COUNT - 4);
   const pageStartY = 10;
+  const commitY = svgH - 34;
+  const commitH = 14;
+  const committer = active.find((w) => w.state === "committing");
 
   return (
     <>
@@ -496,14 +549,16 @@ function MultiWriterViz({
         fontWeight={900}
         opacity={0.4}
       >
-        MVCC_PAGES
+        PAGE VERSIONS
       </text>
 
       {/* Page slots */}
       {Array.from({ length: PAGE_COUNT }).map((_, i) => {
         const py = pageStartY + i * (pageH + 4);
         const targeted = active.some(
-          (w) => w.targetPage === i && (w.state === "writing" || w.state === "conflict"),
+          (w) =>
+            w.targetPage === i &&
+            (w.state === "writing" || w.state === "waiting" || w.state === "committing"),
         );
         return (
           <g key={i}>
@@ -525,21 +580,46 @@ function MultiWriterViz({
               fontSize={7}
               fontWeight={700}
             >
-              Pg {i}
+              {i === HOT_PAGE ? "Pg 0 hot" : `Pg ${i}`}
             </text>
           </g>
         );
       })}
 
-      {/* Writers — all can be active */}
+      {/* Commit step: one writer at a time validates and publishes */}
+      <rect
+        x={TREE_X}
+        y={commitY}
+        width={50}
+        height={commitH}
+        rx={3}
+        fill={committer ? `${committer.color}33` : "rgba(255,255,255,0.02)"}
+        stroke={committer ? committer.color : "rgba(255,255,255,0.12)"}
+        strokeWidth={1}
+      />
+      <text
+        x={TREE_X + 25}
+        y={commitY + commitH / 2 + 2.5}
+        textAnchor="middle"
+        fill={committer ? "#e2e8f0" : "#475569"}
+        fontSize={6.5}
+        fontWeight={900}
+      >
+        COMMIT
+      </text>
+
+      {/* Writers: page work overlaps; the commit step is serialized */}
       {active.map((w) => {
         const laneY = 16 + w.id * LANE_H;
         const pageY = pageStartY + w.targetPage * (pageH + 4) + pageH / 2;
-        const isActive = w.state === "writing" || w.state === "conflict";
+        const atPage =
+          w.state === "waiting" || w.state === "committing" || w.state === "conflict";
+        const isActive = w.state === "writing" || atPage;
+        const travel = atPage ? 1 : w.progress;
         const wx = isActive
-          ? LOCK_X + 8 + w.progress * (TREE_X - LOCK_X - 20)
+          ? LOCK_X + 8 + travel * (TREE_X - LOCK_X - 20)
           : Math.min(w.x, LOCK_X + 10);
-        const wy = isActive ? laneY + (pageY - laneY) * Math.min(w.progress * 1.5, 1) : laneY;
+        const wy = isActive ? laneY + (pageY - laneY) * Math.min(travel * 1.5, 1) : laneY;
 
         return (
           <g key={w.id}>
@@ -551,7 +631,7 @@ function MultiWriterViz({
               stroke="rgba(255,255,255,0.03)"
               strokeWidth={1}
             />
-            {/* Connection line */}
+            {/* Connection line to the page being changed */}
             {isActive && (
               <line
                 x1={wx}
@@ -564,16 +644,36 @@ function MultiWriterViz({
                 strokeDasharray="3 3"
               />
             )}
+            {/* Connection line into the commit step */}
+            {w.state === "committing" && (
+              <line
+                x1={wx}
+                y1={wy}
+                x2={TREE_X}
+                y2={commitY + commitH / 2}
+                stroke={w.color}
+                strokeWidth={1}
+                opacity={0.6}
+              />
+            )}
             {/* Writer dot */}
             <circle
               cx={wx}
               cy={wy}
               r={5}
               fill={w.color}
-              opacity={w.state === "conflict" ? 0.55 : 0.9}
+              opacity={w.state === "conflict" ? 0.55 : w.state === "waiting" ? 0.5 : 0.9}
             >
               {w.state === "conflict" && (
                 <animate attributeName="r" values="5;7;5" dur="0.4s" repeatCount="indefinite" />
+              )}
+              {w.state === "waiting" && (
+                <animate
+                  attributeName="opacity"
+                  values="0.3;0.7;0.3"
+                  dur="1s"
+                  repeatCount="indefinite"
+                />
               )}
             </circle>
             {/* Completion flash */}
@@ -587,10 +687,17 @@ function MultiWriterViz({
             <text x={10} y={laneY + 3} fill={w.color} fontSize={7} fontWeight={700} opacity={0.5}>
               T{w.id + 1}
             </text>
-            {/* FCW conflict tag */}
+            {/* First-committer-wins loss: retry with a fresh snapshot */}
             {w.state === "conflict" && (
-              <text x={wx + 9} y={wy + 3} fill="#fbbf24" fontSize={6} fontWeight={900}>
-                FCW
+              <text
+                x={wx - 9}
+                y={wy + 3}
+                textAnchor="end"
+                fill="#fbbf24"
+                fontSize={6}
+                fontWeight={900}
+              >
+                BUSY_SNAPSHOT · retry
               </text>
             )}
           </g>
@@ -610,6 +717,7 @@ function makeWriters(count: number): WriterState[] {
     targetPage: i % PAGE_COUNT,
     state: "queued" as const,
     progress: 0,
+    basePageVersion: 0,
   }));
 }
 
@@ -619,8 +727,16 @@ function initState(count: number): SimState {
     right: makeWriters(count),
     completedLeft: 0,
     completedRight: 0,
+    retriesRight: 0,
+    pageVersions: Array.from({ length: PAGE_COUNT }, () => 0),
     elapsed: 0,
   };
+}
+
+/** With probability `samePagePct`, target the hot page; otherwise a random cold page. */
+function pickPage(samePagePct: number): number {
+  if (Math.random() * 100 < samePagePct) return HOT_PAGE;
+  return 1 + Math.floor(Math.random() * (PAGE_COUNT - 1));
 }
 
 function simulateTick(
@@ -633,82 +749,99 @@ function simulateTick(
 
   const left = prev.left.map((w) => ({ ...w }));
   const right = prev.right.map((w) => ({ ...w }));
+  const pageVersions = [...prev.pageVersions];
   let completedLeft = prev.completedLeft;
   let completedRight = prev.completedRight;
+  let retriesRight = prev.retriesRight;
 
-  // ---- Left side: Single writer lock ----
+  // ---- Left side: one global write lock, held from first write to commit ----
   const leftActive = left.slice(0, writerCount);
   let lockTaken = leftActive.some((w) => w.state === "writing");
 
   for (const w of leftActive) {
     if (w.state === "queued") {
-      w.x = Math.min(w.x + dt * 70, LOCK_X - 12);
+      w.x = Math.min(w.x + dt * APPROACH_SPEED, LOCK_X - 12);
       if (!lockTaken && w.x >= LOCK_X - 16) {
         w.state = "writing";
         w.progress = 0;
         lockTaken = true;
       }
     } else if (w.state === "writing") {
-      w.progress += dt * 1.0;
+      // Page work plus commit, all under the lock.
+      w.progress += dt / (PAGE_WORK_S + COMMIT_S);
       if (w.progress >= 1) {
         w.state = "done";
         w.progress = 0;
         completedLeft++;
       }
     } else if (w.state === "done") {
-      w.progress += dt * 1.5;
+      w.progress += dt / THINK_S;
       if (w.progress >= 1) {
         w.state = "queued";
         w.x = 20 + Math.random() * 30;
         w.progress = 0;
-        w.targetPage = Math.floor(Math.random() * PAGE_COUNT);
       }
     }
   }
 
-  // ---- Right side: MVCC parallel ----
+  // ---- Right side: page-level MVCC ----
+  // Page work overlaps. The commit step admits one writer at a time and runs
+  // first-committer-wins: if the target page gained a newer committed version
+  // after this writer's snapshot, the writer gets SQLITE_BUSY_SNAPSHOT and retries.
   const rightActive = right.slice(0, writerCount);
+  let commitBusy = rightActive.some((w) => w.state === "committing");
 
   for (const w of rightActive) {
     if (w.state === "queued") {
-      w.x = Math.min(w.x + dt * 100, LOCK_X + 10);
+      w.x = Math.min(w.x + dt * APPROACH_SPEED, LOCK_X + 10);
       if (w.x >= LOCK_X) {
         w.state = "writing";
         w.progress = 0;
+        w.targetPage = pickPage(conflictProb);
+        w.basePageVersion = pageVersions[w.targetPage];
       }
     } else if (w.state === "writing") {
-      // Check for same-page conflict
-      const samePageWriters = rightActive.filter(
-        (o) =>
-          o.id !== w.id &&
-          o.targetPage === w.targetPage &&
-          (o.state === "writing" || o.state === "conflict"),
-      );
-      if (samePageWriters.length > 0 && Math.random() < (conflictProb / 100) * dt * 3) {
-        w.state = "conflict";
-      } else {
-        w.progress += dt * 2.0;
-        if (w.progress >= 1) {
-          w.state = "done";
+      w.progress += dt / PAGE_WORK_S;
+      if (w.progress >= 1) {
+        w.state = "waiting";
+        w.progress = 0;
+      }
+    } else if (w.state === "waiting") {
+      if (!commitBusy) {
+        commitBusy = true;
+        if (pageVersions[w.targetPage] !== w.basePageVersion) {
+          // Base drift on the same page: first committer already won.
+          w.state = "conflict";
           w.progress = 0;
-          completedRight++;
+          retriesRight++;
+          commitBusy = false;
+        } else {
+          w.state = "committing";
+          w.progress = 0;
         }
       }
-    } else if (w.state === "conflict") {
-      // FCW resolution takes some time
-      w.progress += dt * 1.2;
+    } else if (w.state === "committing") {
+      w.progress += dt / COMMIT_S;
       if (w.progress >= 1) {
+        pageVersions[w.targetPage] += 1;
         w.state = "done";
         w.progress = 0;
         completedRight++;
       }
+    } else if (w.state === "conflict") {
+      w.progress += dt / RETRY_PAUSE_S;
+      if (w.progress >= 1) {
+        // Retry the same transaction from a fresh snapshot.
+        w.state = "writing";
+        w.progress = 0;
+        w.basePageVersion = pageVersions[w.targetPage];
+      }
     } else if (w.state === "done") {
-      w.progress += dt * 2;
+      w.progress += dt / THINK_S;
       if (w.progress >= 1) {
         w.state = "queued";
         w.x = 20 + Math.random() * 30;
         w.progress = 0;
-        w.targetPage = Math.floor(Math.random() * PAGE_COUNT);
       }
     }
   }
@@ -718,6 +851,8 @@ function simulateTick(
     right,
     completedLeft,
     completedRight,
+    retriesRight,
+    pageVersions,
     elapsed: prev.elapsed + deltaMs,
   };
 }

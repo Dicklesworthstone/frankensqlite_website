@@ -24,8 +24,10 @@ interface PageNode {
   /** Position in the SVG tree layout (percentage) */
   x: number;
   y: number;
-  /** Whether this is a CoW shadow copy */
+  /** Whether this is a new version of a page (copy-on-write) */
   isShadow?: boolean;
+  /** Whether that new version is still private to the writer (not yet committed) */
+  isPrivate?: boolean;
 }
 
 type HighlightState = "none" | "active" | "scanning" | "found" | "cow" | "updated";
@@ -34,16 +36,15 @@ type HighlightState = "none" | "active" | "scanning" | "found" | "cow" | "update
 /*  Tree data                                                          */
 /* ------------------------------------------------------------------ */
 
+// Interior pages follow SQLite's table B-tree rule: each interior cell holds a
+// key and a left-child page number (rowids <= key live in that child); the
+// page header holds one more "right-most" child pointer for larger rowids.
 const ORIGINAL_TREE: PageNode[] = [
   {
     id: "root",
     label: "Root Page",
     type: "root",
-    cells: [
-      { id: 25, value: "" },
-      { id: 50, value: "" },
-      { id: 75, value: "" },
-    ],
+    cells: [{ id: 30, value: "" }],
     x: 50,
     y: 8,
   },
@@ -51,10 +52,7 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "int-left",
     label: "Internal A",
     type: "internal",
-    cells: [
-      { id: 12, value: "" },
-      { id: 25, value: "" },
-    ],
+    cells: [{ id: 12, value: "" }],
     x: 25,
     y: 35,
   },
@@ -62,10 +60,7 @@ const ORIGINAL_TREE: PageNode[] = [
     id: "int-right",
     label: "Internal B",
     type: "internal",
-    cells: [
-      { id: 37, value: "" },
-      { id: 50, value: "" },
-    ],
+    cells: [{ id: 42, value: "" }],
     x: 75,
     y: 35,
   },
@@ -93,7 +88,7 @@ const ORIGINAL_TREE: PageNode[] = [
   },
   {
     id: "leaf-3",
-    label: "Leaf 3",
+    label: "Leaf 3 v1",
     type: "leaf",
     cells: [
       { id: 37, value: "Frank" },
@@ -132,40 +127,40 @@ const STEPS: Step[] = [
   {
     label: "Page anatomy",
     description:
-      "Data lives in 4KB B-tree pages. The root holds separator keys, internal nodes route traversal, and leaf nodes store rows.",
+      "Rows live in fixed-size B-tree pages: 4096 bytes by default, and SQLite allows any power of two from 512 to 65536. Interior pages hold keys and child page numbers; leaf pages hold the rows. This is SQLite's own file format, which FrankenSQLite reads and writes unchanged.",
   },
   {
-    label: "Binary search in root",
+    label: "Search the root",
     description:
-      "Looking for key 42. Root keys are [25, 50, 75]. Since 42 falls between 25 and 50, follow the right child pointer.",
+      "Looking for rowid 42. The root has one key, 30: rowids up to 30 live under its left child. 42 is larger, so follow the right-most child pointer.",
   },
   {
-    label: "Follow pointer to internal node",
+    label: "Follow pointer to interior page",
     description:
-      "Internal B holds keys [37, 50]. Key 42 is between 37 and 50, so follow the pointer to Leaf 3.",
+      "Internal B has one key, 42. Since 42 ≤ 42, follow that cell's left child pointer to Leaf 3.",
   },
   {
-    label: "Leaf found: key 42",
-    description: "Leaf 3 contains cell id=42, name='Alice'. Read complete in 3 page accesses.",
+    label: "Leaf found: rowid 42",
+    description: "Leaf 3 holds rowid 42, name='Alice'. The read touched 3 pages.",
   },
   {
     label: "UPDATE arrives",
     description: "UPDATE users SET name='Bob' WHERE id=42. The write path begins.",
   },
   {
-    label: "Copy-on-Write",
+    label: "Copy-on-write",
     description:
-      "The original leaf is never modified. A shadow copy is created with the updated cell. The original stays intact for other readers.",
+      "The committed Leaf 3 is not overwritten. The writer gets a private copy of the page (same page number, new version) and changes the cell there. Everyone else keeps reading the committed version.",
   },
   {
-    label: "Pointer chain update",
+    label: "Parents stay the same",
     description:
-      "Internal B gets its own shadow copy with an updated child pointer to the new leaf. The root gets a new copy pointing to the new internal.",
+      "Internal B and the root still hold Leaf 3's page number, so nothing above the leaf is copied. Each reader's snapshot decides which version of that page it gets. (A split or merge would change the parent too, and then the parent would get a new version as well.)",
   },
   {
-    label: "Two trees coexist",
+    label: "Commit publishes the version",
     description:
-      "Old tree (dimmed) serves existing readers. New tree (teal) serves the committing transaction. This is MVCC: multiple versions, zero conflicts.",
+      "At commit the new version gets the next commit sequence number. Snapshots taken after that see 'Bob'; snapshots taken before it keep seeing 'Alice' until they finish, and then the old version can be reclaimed. A writer on another leaf is unaffected; one that also changed Leaf 3 would get SQLITE_BUSY_SNAPSHOT and retry.",
   },
 ];
 
@@ -200,20 +195,20 @@ function getStepVis(step: number): StepVis {
     case 0:
       // All nodes shown normally, root annotated
       base.highlighted = { root: "active" };
-      base.callout = "Header  |  Cell Pointers  |  Cells  |  Free Space";
+      base.callout = "Header  |  Cell Pointers  |  Free Space  |  Cells";
       return base;
 
     case 1:
       // Root scanning
       base.highlighted = { root: "scanning" };
-      base.callout = "25 < 42 < 50 → follow right child";
+      base.callout = "42 > 30 → follow the right-most child";
       return base;
 
     case 2:
       // Traversal arrow root → int-right
       base.highlighted = { root: "active", "int-right": "scanning" };
       base.activeEdges = [["root", "int-right"]];
-      base.callout = "37 < 42 < 50 → follow child to Leaf 3";
+      base.callout = "42 ≤ 42 → follow the left child to Leaf 3";
       return base;
 
     case 3:
@@ -223,7 +218,7 @@ function getStepVis(step: number): StepVis {
         ["root", "int-right"],
         ["int-right", "leaf-3"],
       ];
-      base.callout = "id=42, name='Alice'. Found!";
+      base.callout = "rowid=42, name='Alice'. Found!";
       return base;
 
     case 4:
@@ -233,126 +228,54 @@ function getStepVis(step: number): StepVis {
       return base;
 
     case 5:
-      // CoW: leaf shadow
+      // CoW: private new version of the leaf
       base.highlighted = { "leaf-3": "none" };
       base.dimmedNodes = new Set(["leaf-3"]);
-      base.shadows = [
-        {
-          id: "leaf-3-cow",
-          label: "Leaf 3'",
-          type: "leaf",
-          cells: [
-            { id: 37, value: "Frank" },
-            { id: 42, value: "Bob" },
-          ],
-          x: 68,
-          y: 65,
-          isShadow: true,
-        },
-      ];
-      base.callout = "Shadow copy created, original untouched";
+      base.shadows = [leaf3Version(true)];
+      base.callout = "Private copy of Leaf 3 created; the committed version is untouched";
       return base;
 
     case 6:
-      // CoW chain: internal + root shadows
-      base.dimmedNodes = new Set(["leaf-3", "int-right", "root"]);
-      base.shadows = [
-        {
-          id: "leaf-3-cow",
-          label: "Leaf 3'",
-          type: "leaf",
-          cells: [
-            { id: 37, value: "Frank" },
-            { id: 42, value: "Bob" },
-          ],
-          x: 68,
-          y: 65,
-          isShadow: true,
-        },
-        {
-          id: "int-right-cow",
-          label: "Internal B'",
-          type: "internal",
-          cells: [
-            { id: 37, value: "" },
-            { id: 50, value: "" },
-          ],
-          x: 81,
-          y: 35,
-          isShadow: true,
-        },
-        {
-          id: "root-cow",
-          label: "Root'",
-          type: "root",
-          cells: [
-            { id: 25, value: "" },
-            { id: 50, value: "" },
-            { id: 75, value: "" },
-          ],
-          x: 56,
-          y: 8,
-          isShadow: true,
-        },
-      ];
+      // Parents are not copied: they refer to Leaf 3 by page number
+      base.highlighted = { root: "active", "int-right": "active" };
+      base.dimmedNodes = new Set(["leaf-3"]);
+      base.shadows = [leaf3Version(true)];
       base.activeEdges = [
-        ["root-cow", "int-right-cow"],
-        ["int-right-cow", "leaf-3-cow"],
+        ["root", "int-right"],
+        ["int-right", "leaf-3-cow"],
       ];
-      base.callout = "Pointer chain: Root' → Internal B' → Leaf 3'";
+      base.callout = "Internal B → Leaf 3's page number → the version this snapshot can see";
       return base;
 
     case 7:
-      // Both trees
-      base.dimmedNodes = new Set(["leaf-3", "int-right", "root"]);
-      base.shadows = [
-        {
-          id: "leaf-3-cow",
-          label: "Leaf 3'",
-          type: "leaf",
-          cells: [
-            { id: 37, value: "Frank" },
-            { id: 42, value: "Bob" },
-          ],
-          x: 68,
-          y: 65,
-          isShadow: true,
-        },
-        {
-          id: "int-right-cow",
-          label: "Internal B'",
-          type: "internal",
-          cells: [
-            { id: 37, value: "" },
-            { id: 50, value: "" },
-          ],
-          x: 81,
-          y: 35,
-          isShadow: true,
-        },
-        {
-          id: "root-cow",
-          label: "Root'",
-          type: "root",
-          cells: [
-            { id: 25, value: "" },
-            { id: 50, value: "" },
-            { id: 75, value: "" },
-          ],
-          x: 56,
-          y: 8,
-          isShadow: true,
-        },
-      ];
+      // Commit: the new version is published; the old one stays for older snapshots
+      base.dimmedNodes = new Set(["leaf-3"]);
+      base.shadows = [leaf3Version(false)];
       base.activeEdges = [
-        ["root-cow", "int-right-cow"],
-        ["int-right-cow", "leaf-3-cow"],
-        ["root-cow", "int-left"],
+        ["root", "int-right"],
+        ["int-right", "leaf-3-cow"],
       ];
-      base.callout = "Both versions exist simultaneously: this is MVCC";
+      base.callout = "New snapshots see 'Bob'. Older snapshots still see 'Alice'.";
       return base;
   }
   return base;
+}
+
+/** The writer's new version of Leaf 3 (same page number, new version). */
+function leaf3Version(isPrivate: boolean): PageNode {
+  return {
+    id: "leaf-3-cow",
+    label: isPrivate ? "Leaf 3 v2 (private)" : "Leaf 3 v2 (committed)",
+    type: "leaf",
+    cells: [
+      { id: 37, value: "Frank" },
+      { id: 42, value: "Bob" },
+    ],
+    x: 68,
+    y: 65,
+    isShadow: true,
+    isPrivate,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -390,8 +313,12 @@ function PageBlock({
   const x = (node.x / 100) * 900 - PAGE_W / 2;
   const y = (node.y / 100) * 380;
 
+  const shadowColor = node.isPrivate ? "#f59e0b" : "#14b8a6";
+
   const glowColor = node.isShadow
-    ? "rgba(20,184,166,0.5)"
+    ? node.isPrivate
+      ? "rgba(245,158,11,0.5)"
+      : "rgba(20,184,166,0.5)"
     : highlight === "found"
       ? "rgba(34,197,94,0.5)"
       : highlight === "scanning"
@@ -401,7 +328,7 @@ function PageBlock({
           : "transparent";
 
   const borderColor = node.isShadow
-    ? "#14b8a6"
+    ? shadowColor
     : highlight === "found"
       ? "#22c55e"
       : highlight === "scanning"
@@ -440,7 +367,13 @@ function PageBlock({
         width={PAGE_W}
         height={h}
         rx={10}
-        fill={node.isShadow ? "rgba(20,184,166,0.08)" : "rgba(255,255,255,0.03)"}
+        fill={
+          node.isShadow
+            ? node.isPrivate
+              ? "rgba(245,158,11,0.08)"
+              : "rgba(20,184,166,0.08)"
+            : "rgba(255,255,255,0.03)"
+        }
         stroke={borderColor}
         strokeWidth={1.5}
       />
@@ -450,7 +383,7 @@ function PageBlock({
         x={x + PAGE_W / 2}
         y={y + 14}
         textAnchor="middle"
-        fill={node.isShadow ? "#14b8a6" : "#94a3b8"}
+        fill={node.isShadow ? shadowColor : "#94a3b8"}
         fontSize={9}
         fontWeight={800}
         fontFamily="ui-monospace, monospace"
@@ -469,13 +402,15 @@ function PageBlock({
         const cellFill =
           isFocusCell && (highlight === "found" || node.isShadow)
             ? node.isShadow
-              ? "rgba(20,184,166,0.25)"
+              ? node.isPrivate
+                ? "rgba(245,158,11,0.25)"
+                : "rgba(20,184,166,0.25)"
               : "rgba(34,197,94,0.2)"
             : "rgba(255,255,255,0.04)";
         const cellBorder =
           isFocusCell && (highlight === "found" || node.isShadow)
             ? node.isShadow
-              ? "#14b8a6"
+              ? shadowColor
               : "#22c55e"
             : "rgba(255,255,255,0.06)";
 
@@ -509,7 +444,7 @@ function PageBlock({
                 y={cy + cellH / 2 + 8}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill={node.isShadow && cell.id === 42 ? "#14b8a6" : "rgba(255,255,255,0.4)"}
+                fill={node.isShadow && cell.id === 42 ? shadowColor : "rgba(255,255,255,0.4)"}
                 fontSize={7}
                 fontFamily="ui-monospace, monospace"
               >
@@ -606,8 +541,9 @@ export default function BTreePageExplorer() {
   return (
     <VizContainer
       title="B-Tree Page Explorer"
-      description="Explore how data lives in 4KB B-tree pages and how copy-on-write enables MVCC."
+      description="Explore how rows live in SQLite-format B-tree pages (4 KB by default) and how writing a new page version, instead of overwriting the page, gives readers a stable snapshot."
       minHeight={480}
+      status="live"
     >
       <div className="p-4 md:p-6 space-y-4">
         {/* Phase badge */}
@@ -740,42 +676,45 @@ export default function BTreePageExplorer() {
         whatItIs={
           <>
             <p>
-              You are looking at a classic B-Tree. All data in FrankenSQLite (tables and indexes) is
-              stored in these 4KB pages. The Root Page routes you to Internal Pages, which
-              eventually route you to Leaf Pages holding the actual data.
+              A small table B-tree in SQLite&apos;s on-disk format, which FrankenSQLite reads and
+              writes unchanged. Tables and indexes are both stored this way. Pages are 4096 bytes by
+              default (SQLite allows 512 to 65536). The root page routes you to interior pages,
+              which route you to the leaf pages that hold the rows.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              The interactive Stepper at the bottom walks you through a complete Read and Write
-              cycle.
+              The stepper at the bottom walks through one read and one write.
             </p>
             <p>
-              During the <strong>Read Path</strong>, the engine performs a standard binary search
-              down the tree to locate Alice.
+              On the <strong>Read Path</strong>, the engine compares the rowid against each
+              page&apos;s keys to pick the next child, three page reads in all, to find Alice.
             </p>
             <div>
-              During the <strong>Write Path</strong>, we update Alice to Bob. Notice how the
-              original Leaf 3 is never overwritten. Instead, the engine creates a{" "}
-              <FrankenJargon term="cow">shadow copy</FrankenJargon>. This requires creating a shadow
-              copy of its parent (Internal B&apos;) and a new Root&apos;.
+              On the <strong>Write Path</strong>, we change Alice to Bob. The committed Leaf 3 is
+              not overwritten. The writer gets a private{" "}
+              <FrankenJargon term="cow">copy</FrankenJargon>, which is a new version of the same
+              page number. Internal B and the root are not copied, because they refer to Leaf 3 by
+              page number.
             </div>
           </>
         }
         whyItMatters={
           <>
             <div>
-              The <FrankenJargon term="cow">Copy-on-Write</FrankenJargon> mechanism is what enables{" "}
-              <FrankenJargon term="mvcc">MVCC</FrankenJargon> at the{" "}
-              <FrankenJargon term="btree">B-tree</FrankenJargon> level. Because the old tree was
-              never modified, existing readers can continue querying it simultaneously while the
-              writer constructs the new tree in the background.
+              Because committed pages are never overwritten in place, readers that started earlier
+              keep reading the old version while the writer works, without taking page locks. The
+              writer&apos;s change becomes visible all at once when it commits. This is how{" "}
+              <FrankenJargon term="mvcc">MVCC</FrankenJargon> works at the{" "}
+              <FrankenJargon term="btree">B-tree</FrankenJargon> page level.
             </div>
             <p>
-              No locks, no blocking. Once the write is finished, the new Root is atomically swapped
-              in for all future transactions.
+              Writers still coordinate. A page has at most one writer at a time (a second writer
+              that tries to lock it gets <code>SQLITE_BUSY</code> right away), commit has a short
+              serialized step, and two transactions that changed the same page cannot both commit:
+              the later one gets <code>SQLITE_BUSY_SNAPSHOT</code> and retries.
             </p>
           </>
         }

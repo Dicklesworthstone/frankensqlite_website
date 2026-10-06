@@ -472,7 +472,7 @@ export default function HomePage() {
       </SectionShell>
 
       {/* ================================================================
-          3C. DURABILITY — Write-Ahead Log with per-writer lanes
+          3C. DURABILITY — Write-Ahead Log
           ================================================================ */}
       <SectionShell
         id="durability"
@@ -675,7 +675,7 @@ export default function HomePage() {
       <SectionShell
         id="self-healing"
         icon="shield"
-        eyebrow="Self-Healing Storage"
+        eyebrow="Corruption Repair"
         title="Repairing the WAL"
         status="partial"
         statusNote={
@@ -855,7 +855,7 @@ export default function HomePage() {
       </SectionShell>
 
       {/* ================================================================
-          10. 26-CRATE WORKSPACE
+          10. CRATE WORKSPACE
           ================================================================ */}
       <SectionShell
         id="crates"

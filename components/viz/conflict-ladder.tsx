@@ -20,7 +20,7 @@ interface ScenarioDef {
   steps: Step[];
 }
 
-type TxnStatus = "idle" | "writing" | "committed" | "conflict" | "retrying";
+type TxnStatus = "idle" | "writing" | "committed" | "conflict" | "retrying" | "designed";
 
 interface TxnState {
   label: string;
@@ -29,11 +29,15 @@ interface TxnState {
   status: TxnStatus;
 }
 
+type NodeVariant = "neutral" | "success" | "fail" | "dormant";
+
 interface StepVisual {
   txnA: TxnState;
   txnB: TxnState;
   /** Which decision-tree nodes are highlighted */
   activeNodes: string[];
+  /** Per-node color overrides for this step (commit/abort have defaults) */
+  variants?: Record<string, NodeVariant>;
   /** Arrow between txns: "none" | "independent" | "merge" | "conflict" */
   relation: "none" | "independent" | "merge" | "conflict";
   /** Annotation text shown in the center area */
@@ -47,85 +51,89 @@ interface StepVisual {
 const scenarios: ScenarioDef[] = [
   {
     id: 0,
-    title: "Non-conflicting writes",
-    subtitle: "Different pages -- fast path",
+    title: "Different pages",
+    subtitle: "No shared page: both commit (live path today)",
     color: "#22c55e",
     steps: [
       {
         label: "Txn A writes Page 3, Txn B writes Page 7",
         description:
-          "Two concurrent transactions modify completely separate B-tree pages. Different pages means zero overlap in the data they touch.",
+          "Two concurrent transactions change different B-tree pages. Each takes its own page lock and builds private new versions of its own page.",
       },
       {
-        label: "Both pages modified independently",
+        label: "First-committer-wins: no base drift",
         description:
-          "The engine checks write-sets and finds no shared pages. Each transaction wrote to its own copy-on-write shadow page, so there is nothing to reconcile.",
+          "At commit, first-committer-wins checks whether any page the transaction wrote has gained a newer committed version since its snapshot. Page 3 and Page 7 are separate, so neither has.",
       },
       {
-        label: "Both commit successfully",
+        label: "SSI check passes, both commit",
         description:
-          "First-Committer-Wins passes trivially because there is no contested page. Both transactions commit without any merge step.",
+          "The SSI check finds no transaction with read-write antidependencies both coming in and going out, so both commit. This is the live path today; no merge step is involved.",
       },
     ],
   },
   {
     id: 1,
-    title: "Commuting writes",
-    subtitle: "Same page, different cells",
+    title: "Same page, different rows",
+    subtitle: "Today: the later committer retries. With the dormant ladder: rebase would commit both.",
     color: "#eab308",
     steps: [
       {
-        label: "Txn A writes Page 5 cell [0-49], Txn B writes Page 5 cell [50-99]",
+        label: "A updates rowid 12, B updates rowid 87, both on Page 5",
         description:
-          "Both transactions touch the same B-tree page, but write to disjoint cell ranges. The writes are independent even though the page is shared.",
+          "Both transactions start from the same snapshot and change different rows that happen to live on the same leaf page. Neither change depends on the other.",
       },
       {
-        label: "First-Committer-Wins -- Txn A commits first",
+        label: "Txn A commits first",
         description:
-          "Txn A reaches the commit point first and its changes are serialized. Txn B must now prove its writes are compatible before it can commit too.",
+          "A takes Page 5's lock, writes its version, and commits; the lock is released at commit. (Had B touched Page 5 while A still held the lock, B would have gotten SQLITE_BUSY right away.)",
       },
       {
-        label: "Safe Merge Ladder -- operations commute",
+        label: "Txn B: first-committer-wins finds base drift",
         description:
-          '"Commuting" means the order doesn\'t matter: applying A then B produces the same page as applying B then A. The ladder inspects cell-level write-sets and confirms the operations commute.',
+          "B changed Page 5 starting from its older snapshot. At commit, first-committer-wins sees that Page 5 now has a newer committed version than the one B started from.",
       },
       {
-        label: "Deterministic rebase succeeds -- both committed",
+        label: "Today: SQLITE_BUSY_SNAPSHOT, B retries",
         description:
-          "Txn B rebases its changes onto Txn A's committed page state. Because the cell ranges don't overlap, the rebase produces a deterministic result and both transactions commit.",
+          "The live commit path does not try to merge. B gets SQLITE_BUSY_SNAPSHOT and the application retries it from a fresh snapshot. The result is correct, but it costs a retry for a change that never really conflicted.",
+      },
+      {
+        label: "Designed: deterministic rebase would commit B",
+        description:
+          "With the dormant merge ladder wired in, B's recorded intent ('update rowid 87') would be replayed against A's committed page, with B-tree invariants and constraints checked. The rows differ, so the replay would succeed and both would commit. The code exists and is tested; the live commit path does not call it yet.",
       },
     ],
   },
   {
     id: 2,
-    title: "True conflict",
-    subtitle: "Same cell -- must retry",
+    title: "Same row",
+    subtitle: "A real conflict: retry today, and retry by design",
     color: "#ef4444",
     steps: [
       {
-        label: "Both Txn A and Txn B modify Page 5 cell [42]",
+        label: "A and B both change rowid 42 on Page 5",
         description:
-          "Both transactions write to the exact same cell on the same page. This is the only scenario where a real conflict exists.",
+          "Both transactions read rowid 42 and write a new value based on what they read. This is a real conflict: whichever commits second was working from stale data.",
       },
       {
-        label: "SSI Check -- rw-antidependency detected",
-        description:
-          "SSI tracks which pages each transaction read and wrote. It detects a read-write anti-dependency cycle: each transaction read the old value of cell [42] before the other wrote it.",
+        label: "Txn A commits first",
+        description: "A takes Page 5's lock, writes its version, and commits.",
       },
       {
-        label: "First-Committer-Wins -- Txn A committed",
+        label: "Txn B: first-committer-wins finds base drift",
         description:
-          "Txn A reaches the commit point first and wins. Txn B must now attempt the safe merge ladder to see if its changes can still be applied.",
+          "Page 5 now has a newer committed version than B's snapshot, so B cannot simply commit its copy of the page.",
       },
       {
-        label: "Safe merge fails -- byte-level overlap on cell [42]",
+        label: "The merge ladder would not help",
         description:
-          "The merge ladder tries every strategy but cannot reconcile: both transactions wrote to identical byte offsets within the page. No safe reordering exists.",
+          "Rebase is ruled out because B's change depends on a value it read, which A has since changed. A structured page patch is ruled out because both changed the same cell. The ladder falls through to its last rung.",
       },
       {
-        label: "Txn B receives SQLITE_BUSY_SNAPSHOT, retries",
+        label: "B gets SQLITE_BUSY_SNAPSHOT and retries",
         description:
-          "Txn B is aborted with SQLITE_BUSY_SNAPSHOT. It must start over with a fresh snapshot that includes Txn A's committed changes, then re-apply its logic.",
+          "B is aborted with SQLITE_BUSY_SNAPSHOT and the application retries it from a fresh snapshot that includes A's change. Today's engine reaches this result directly, without trying the ladder.",
       },
     ],
   },
@@ -140,101 +148,118 @@ function getVisual(scenarioId: number, step: number): StepVisual {
   if (scenarioId === 0) {
     const visuals: StepVisual[] = [
       {
-        txnA: { label: "Txn A", page: "Page 3", cells: "*", status: "writing" },
-        txnB: { label: "Txn B", page: "Page 7", cells: "*", status: "writing" },
+        txnA: { label: "Txn A", page: "Page 3", cells: "its rows", status: "writing" },
+        txnB: { label: "Txn B", page: "Page 7", cells: "its rows", status: "writing" },
         activeNodes: ["start"],
         relation: "independent",
         annotation: "Writing to different pages",
       },
       {
-        txnA: { label: "Txn A", page: "Page 3", cells: "*", status: "writing" },
-        txnB: { label: "Txn B", page: "Page 7", cells: "*", status: "writing" },
-        activeNodes: ["start", "page-check"],
+        txnA: { label: "Txn A", page: "Page 3", cells: "its rows", status: "writing" },
+        txnB: { label: "Txn B", page: "Page 7", cells: "its rows", status: "writing" },
+        activeNodes: ["start", "fcw"],
+        variants: { fcw: "success" },
         relation: "independent",
-        annotation: "No page overlap detected",
+        annotation: "FCW: no base drift on either page",
       },
       {
-        txnA: { label: "Txn A", page: "Page 3", cells: "*", status: "committed" },
-        txnB: { label: "Txn B", page: "Page 7", cells: "*", status: "committed" },
-        activeNodes: ["start", "page-check", "commit"],
+        txnA: { label: "Txn A", page: "Page 3", cells: "its rows", status: "committed" },
+        txnB: { label: "Txn B", page: "Page 7", cells: "its rows", status: "committed" },
+        activeNodes: ["start", "fcw", "ssi", "commit"],
+        variants: { fcw: "success", ssi: "success" },
         relation: "independent",
-        annotation: "Both committed successfully",
+        annotation: "Both committed",
       },
     ];
     return visuals[step] ?? visuals[0];
   }
 
-  // Scenario 1: Commuting writes
+  // Scenario 1: Same page, different rows
   if (scenarioId === 1) {
     const visuals: StepVisual[] = [
       {
-        txnA: { label: "Txn A", page: "Page 5", cells: "[0-49]", status: "writing" },
-        txnB: { label: "Txn B", page: "Page 5", cells: "[50-99]", status: "writing" },
+        txnA: { label: "Txn A", page: "Page 5", cells: "rowid 12", status: "writing" },
+        txnB: { label: "Txn B", page: "Page 5", cells: "rowid 87", status: "writing" },
         activeNodes: ["start"],
         relation: "merge",
-        annotation: "Same page, different cell ranges",
+        annotation: "Same page, different rows",
       },
       {
-        txnA: { label: "Txn A", page: "Page 5", cells: "[0-49]", status: "committed" },
-        txnB: { label: "Txn B", page: "Page 5", cells: "[50-99]", status: "writing" },
-        activeNodes: ["start", "page-check", "fcw"],
+        txnA: { label: "Txn A", page: "Page 5", cells: "rowid 12", status: "committed" },
+        txnB: { label: "Txn B", page: "Page 5", cells: "rowid 87", status: "writing" },
+        activeNodes: ["start", "fcw"],
+        variants: { fcw: "success" },
         relation: "merge",
-        annotation: "First-Committer-Wins: Txn A commits",
+        annotation: "Txn A commits first",
       },
       {
-        txnA: { label: "Txn A", page: "Page 5", cells: "[0-49]", status: "committed" },
-        txnB: { label: "Txn B", page: "Page 5", cells: "[50-99]", status: "writing" },
-        activeNodes: ["start", "page-check", "fcw", "merge-check"],
+        txnA: { label: "Txn A", page: "Page 5", cells: "rowid 12", status: "committed" },
+        txnB: { label: "Txn B", page: "Page 5", cells: "rowid 87", status: "writing" },
+        activeNodes: ["start", "fcw"],
+        variants: { fcw: "fail" },
         relation: "merge",
-        annotation: "Safe merge ladder: operations commute",
+        annotation: "Txn B: Page 5 changed since its snapshot",
       },
       {
-        txnA: { label: "Txn A", page: "Page 5", cells: "[0-49]", status: "committed" },
-        txnB: { label: "Txn B", page: "Page 5", cells: "[50-99]", status: "committed" },
-        activeNodes: ["start", "page-check", "fcw", "merge-check", "commit"],
+        txnA: { label: "Txn A", page: "Page 5", cells: "rowid 12", status: "committed" },
+        txnB: { label: "Txn B", page: "Page 5", cells: "rowid 87", status: "retrying" },
+        activeNodes: ["start", "fcw", "merge-check", "abort"],
+        variants: { fcw: "fail", "merge-check": "dormant" },
         relation: "merge",
-        annotation: "Deterministic rebase succeeds",
+        annotation: "Today: ladder not wired, B gets SQLITE_BUSY_SNAPSHOT",
+      },
+      {
+        txnA: { label: "Txn A", page: "Page 5", cells: "rowid 12", status: "committed" },
+        txnB: { label: "Txn B", page: "Page 5", cells: "rowid 87", status: "designed" },
+        activeNodes: ["start", "fcw", "merge-check", "commit"],
+        variants: { fcw: "fail", "merge-check": "success" },
+        relation: "merge",
+        annotation: "Design (dormant): rebase replays B's intent, both commit",
       },
     ];
     return visuals[step] ?? visuals[0];
   }
 
-  // Scenario 2: True conflict
+  // Scenario 2: Same row
   const visuals: StepVisual[] = [
     {
-      txnA: { label: "Txn A", page: "Page 5", cells: "[42]", status: "writing" },
-      txnB: { label: "Txn B", page: "Page 5", cells: "[42]", status: "writing" },
+      txnA: { label: "Txn A", page: "Page 5", cells: "rowid 42", status: "writing" },
+      txnB: { label: "Txn B", page: "Page 5", cells: "rowid 42", status: "writing" },
       activeNodes: ["start"],
       relation: "conflict",
-      annotation: "Both write to cell [42] on Page 5",
+      annotation: "Both change rowid 42 on Page 5",
     },
     {
-      txnA: { label: "Txn A", page: "Page 5", cells: "[42]", status: "writing" },
-      txnB: { label: "Txn B", page: "Page 5", cells: "[42]", status: "writing" },
-      activeNodes: ["start", "page-check", "ssi"],
+      txnA: { label: "Txn A", page: "Page 5", cells: "rowid 42", status: "committed" },
+      txnB: { label: "Txn B", page: "Page 5", cells: "rowid 42", status: "writing" },
+      activeNodes: ["start", "fcw"],
+      variants: { fcw: "success" },
       relation: "conflict",
-      annotation: "SSI: rw-antidependency detected",
+      annotation: "Txn A commits first",
     },
     {
-      txnA: { label: "Txn A", page: "Page 5", cells: "[42]", status: "committed" },
-      txnB: { label: "Txn B", page: "Page 5", cells: "[42]", status: "writing" },
-      activeNodes: ["start", "page-check", "ssi", "fcw"],
+      txnA: { label: "Txn A", page: "Page 5", cells: "rowid 42", status: "committed" },
+      txnB: { label: "Txn B", page: "Page 5", cells: "rowid 42", status: "writing" },
+      activeNodes: ["start", "fcw"],
+      variants: { fcw: "fail" },
       relation: "conflict",
-      annotation: "First-Committer-Wins: Txn A commits",
+      annotation: "Txn B: Page 5 changed since its snapshot",
     },
     {
-      txnA: { label: "Txn A", page: "Page 5", cells: "[42]", status: "committed" },
-      txnB: { label: "Txn B", page: "Page 5", cells: "[42]", status: "conflict" },
-      activeNodes: ["start", "page-check", "ssi", "fcw", "merge-check"],
+      txnA: { label: "Txn A", page: "Page 5", cells: "rowid 42", status: "committed" },
+      txnB: { label: "Txn B", page: "Page 5", cells: "rowid 42", status: "conflict" },
+      activeNodes: ["start", "fcw", "merge-check"],
+      variants: { fcw: "fail", "merge-check": "fail" },
       relation: "conflict",
-      annotation: "Safe merge fails: byte-level overlap",
+      annotation: "Rebase and cell patch both ruled out",
     },
     {
-      txnA: { label: "Txn A", page: "Page 5", cells: "[42]", status: "committed" },
-      txnB: { label: "Txn B", page: "Page 5", cells: "[42]", status: "retrying" },
-      activeNodes: ["start", "page-check", "ssi", "fcw", "merge-check", "abort"],
+      txnA: { label: "Txn A", page: "Page 5", cells: "rowid 42", status: "committed" },
+      txnB: { label: "Txn B", page: "Page 5", cells: "rowid 42", status: "retrying" },
+      activeNodes: ["start", "fcw", "merge-check", "abort"],
+      variants: { fcw: "fail", "merge-check": "fail" },
       relation: "conflict",
-      annotation: "SQLITE_BUSY_SNAPSHOT -- Txn B retries",
+      annotation: "SQLITE_BUSY_SNAPSHOT: Txn B retries",
     },
   ];
   return visuals[step] ?? visuals[0];
@@ -250,14 +275,16 @@ const statusColors: Record<TxnStatus, string> = {
   committed: "#22c55e",
   conflict: "#ef4444",
   retrying: "#f59e0b",
+  designed: "#fb923c",
 };
 
 const statusLabels: Record<TxnStatus, string> = {
   idle: "Idle",
   writing: "Writing...",
   committed: "Committed",
-  conflict: "Conflict!",
-  retrying: "Retrying...",
+  conflict: "Conflict",
+  retrying: "BUSY_SNAPSHOT, retrying",
+  designed: "Would commit (dormant)",
 };
 
 function TxnCard({ x, y, txn }: { x: number; y: number; txn: TxnState }) {
@@ -313,7 +340,7 @@ function TxnCard({ x, y, txn }: { x: number; y: number; txn: TxnState }) {
       </text>
       {/* Page + cells */}
       <text x={x + w / 2} y={y + 42} textAnchor="middle" fill="#94a3b8" fontSize={11}>
-        {txn.page} cell {txn.cells}
+        {txn.page} · {txn.cells}
       </text>
       {/* Status */}
       <text x={x + w / 2} y={y + 62} textAnchor="middle" fill={fill} fontSize={11} fontWeight={600}>
@@ -353,6 +380,20 @@ function TxnCard({ x, y, txn }: { x: number; y: number; txn: TxnState }) {
           transition={{ type: "spring", stiffness: 500 }}
         />
       )}
+      {txn.status === "designed" && (
+        <motion.circle
+          cx={x + w / 2}
+          cy={y + 78}
+          r={5}
+          fill="none"
+          stroke="#fb923c"
+          strokeWidth={1.5}
+          strokeDasharray="2 2"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ type: "spring", stiffness: 500 }}
+        />
+      )}
     </motion.g>
   );
 }
@@ -371,12 +412,13 @@ function DecisionNode({
   y: number;
   label: string;
   active: boolean;
-  variant: "neutral" | "success" | "fail";
+  variant: NodeVariant;
 }) {
   const colorMap = {
     neutral: { bg: "#1e293b", border: "#475569", text: "#cbd5e1" },
     success: { bg: "#052e16", border: "#22c55e", text: "#86efac" },
     fail: { bg: "#2a0a0a", border: "#ef4444", text: "#fca5a5" },
+    dormant: { bg: "#1c1305", border: "#fb923c", text: "#fdba74" },
   };
   const c = active ? colorMap[variant] : { bg: "#111318", border: "#1e293b", text: "#475569" };
   const w = 160;
@@ -466,14 +508,13 @@ export default function ConflictLadder() {
   // Decision tree node definitions and layout
   const isActive = (id: string) => visual.activeNodes.includes(id);
 
-  // Determine node variant based on scenario + node
-  const nodeVariant = (id: string): "neutral" | "success" | "fail" => {
+  // Determine node variant based on the step's overrides + node defaults
+  const nodeVariant = (id: string): NodeVariant => {
     if (!isActive(id)) return "neutral";
+    const override = visual.variants?.[id];
+    if (override) return override;
     if (id === "commit") return "success";
     if (id === "abort") return "fail";
-    if (id === "merge-check") {
-      return scenarioIdx === 2 ? "fail" : "neutral";
-    }
     return "neutral";
   };
 
@@ -487,50 +528,45 @@ export default function ConflictLadder() {
   const txnY = 10;
   const centerX = svgW / 2;
 
-  // Decision tree Y positions
+  // Decision tree positions. Order matches the engine: first-committer-wins
+  // runs first; SSI runs only when FCW passes; the (dormant) merge ladder would
+  // sit on the base-drift branch.
   const treeStartY = 140;
-  const treeGap = 44;
   const nodePositions: Record<string, { x: number; y: number; label: string }> = {
-    start: { x: centerX, y: treeStartY, label: "Begin Commit" },
-    "page-check": {
-      x: centerX,
-      y: treeStartY + treeGap,
-      label: "Page Overlap Check",
-    },
-    ssi: {
-      x: centerX - 80,
-      y: treeStartY + treeGap * 2,
-      label: "SSI Dependency",
-    },
+    start: { x: centerX, y: treeStartY, label: "Begin commit" },
     fcw: {
       x: centerX,
-      y: treeStartY + treeGap * 2,
-      label: "First-Committer-Wins",
+      y: treeStartY + 46,
+      label: "FCW: base drift?",
+    },
+    ssi: {
+      x: centerX - 130,
+      y: treeStartY + 100,
+      label: "No drift: SSI check",
     },
     "merge-check": {
-      x: centerX,
-      y: treeStartY + treeGap * 3,
-      label: "Safe Merge Ladder",
+      x: centerX + 130,
+      y: treeStartY + 100,
+      label: "Merge ladder (dormant)",
     },
     commit: {
-      x: centerX - 80,
-      y: treeStartY + treeGap * 4,
+      x: centerX,
+      y: treeStartY + 160,
       label: "Commit OK",
     },
     abort: {
-      x: centerX + 80,
-      y: treeStartY + treeGap * 4,
-      label: "SQLITE_BUSY",
+      x: centerX + 180,
+      y: treeStartY + 160,
+      label: "SQLITE_BUSY_SNAPSHOT",
     },
   };
 
   // Edge definitions: [from, to]
   const edges: [string, string][] = [
-    ["start", "page-check"],
-    ["page-check", "fcw"],
-    ["page-check", "ssi"],
-    ["ssi", "fcw"],
+    ["start", "fcw"],
+    ["fcw", "ssi"],
     ["fcw", "merge-check"],
+    ["ssi", "commit"],
     ["merge-check", "commit"],
     ["merge-check", "abort"],
   ];
@@ -538,23 +574,23 @@ export default function ConflictLadder() {
   // Which edges are active is derived from active nodes
   const activeEdges = edges.filter(([from, to]) => isActive(from) && isActive(to));
 
-  // Which nodes to render (skip ssi for scenario 0 and 1)
-  const visibleNodes =
-    scenarioIdx === 2
-      ? Object.keys(nodePositions)
-      : Object.keys(nodePositions).filter((k) => k !== "ssi" && k !== "abort");
+  const visibleNodes = Object.keys(nodePositions);
 
   return (
     <VizContainer
       title="Write Conflict Resolution Ladder"
       description={
         <>
-          Step through three scenarios to see how FrankenSQLite resolves concurrent B-tree page
-          modifications using <FrankenJargon term="fcw">First-Committer-Wins</FrankenJargon> and the{" "}
-          <FrankenJargon term="safe-merge-ladder">safe merge ladder</FrankenJargon>.
+          Step through three scenarios. Today the live engine settles every same-page conflict
+          with <FrankenJargon term="fcw">first-committer-wins</FrankenJargon>: the later committer
+          gets <code>SQLITE_BUSY_SNAPSHOT</code> and retries. The{" "}
+          <FrankenJargon term="safe-merge-ladder">safe merge ladder</FrankenJargon> (deterministic
+          rebase, then structured page patches, then abort) is built and tested but not yet wired
+          into the commit path.
         </>
       }
       minHeight={520}
+      status="dormant"
     >
       <div className="p-3 md:p-6 flex flex-col gap-4">
         {/* Scenario selector */}
@@ -887,45 +923,52 @@ export default function ConflictLadder() {
         whatItIs={
           <>
             <p>
-              You are looking at a decision tree for FrankenSQLite&apos;s conflict resolution logic.
-              Two concurrent transactions have modified the same{" "}
-              <FrankenJargon term="btree">B-tree page</FrankenJargon> and are trying to commit. The
-              tree shows which resolution strategy the{" "}
-              <FrankenJargon term="safe-merge-ladder">Safe Merge Ladder</FrankenJargon> selects
-              based on the nature of the conflict.
+              A decision tree for what happens when a transaction commits. First-committer-wins
+              checks every page it wrote for base drift: a newer committed version of the{" "}
+              <FrankenJargon term="btree">B-tree page</FrankenJargon> than the one its snapshot
+              saw. No drift leads to the SSI check and, normally, a commit. Drift leads to an abort
+              and retry today. The designed{" "}
+              <FrankenJargon term="safe-merge-ladder">safe merge ladder</FrankenJargon> would sit on
+              that branch.
             </p>
             <p>
-              Three scenarios demonstrate the spectrum: non-conflicting writes (different cells on
-              the same page), commuting writes (independent operations that can be reordered), and
-              true conflicts (overlapping byte ranges that cannot be merged).
+              The ladder has three rungs, tried in order: (1){" "}
+              <FrankenJargon term="deterministic-rebase">deterministic rebase</FrankenJargon>,
+              which replays the transaction&apos;s recorded B-tree intents (insert, update, or
+              delete by key) against the newly committed page; (2) a structured page patch, which
+              combines the two changes cell by cell when they touched different cells, serializes
+              page-header changes, and checks page invariants; (3) abort and retry.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Switch between the three scenario tabs to see different conflict types. Step through
-              each scenario to watch the decision tree highlight the active node and update the
-              transaction status cards. In the non-conflicting scenario, both transactions commit
-              immediately. In the commuting scenario,{" "}
-              <FrankenJargon term="foata">FOATA reordering</FrankenJargon> finds a valid merge. In
-              the true conflict scenario, the engine falls through to abort.
+              Switch between the three scenarios and step through each one. With different pages,
+              both transactions commit on today&apos;s live path. With the same page but different
+              rows, the fourth step shows today&apos;s retry and the fifth shows what rebase would
+              do once it is wired in. With the same row, no rung applies and the result is a retry
+              either way.
             </p>
             <p>
-              Pay attention to how each rung of the ladder handles a wider class of conflicts than
-              the one above it.
+              Orange marks the dormant part: code that exists and is tested but that the live
+              commit path does not call yet.
             </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              In production workloads, the vast majority of &ldquo;conflicts&rdquo; are false
-              positives caused by page-level granularity: two transactions happen to land on the
-              same physical page even though they modify completely different rows. The{" "}
-              <FrankenJargon term="safe-merge-ladder">Safe Merge Ladder</FrankenJargon> converts
-              over 90% of these would-be <code>SQLITE_BUSY</code> errors into transparent background
-              merges, preserving throughput that a traditional single-writer engine would sacrifice.
+              Page-level conflict detection reports a conflict whenever two transactions change
+              the same page, even if they touched different rows. On a hot page, such as the last
+              leaf of a table that keeps getting appended to, that means extra retries. The merge
+              ladder is meant to turn some of those retries into commits without adding row-level
+              version metadata. It has not been measured on real workloads, so there is no figure
+              for how many conflicts it would resolve.
+            </p>
+            <p>
+              Byte-level XOR merging is deliberately not a rung. On SQLite pages, two edits that
+              touch different bytes can still lose an update when a cell moves.
             </p>
           </>
         }

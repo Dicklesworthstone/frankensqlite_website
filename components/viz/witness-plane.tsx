@@ -12,7 +12,9 @@ interface WitnessEdge {
   id: string;
   from: string;
   to: string;
-  type: "rw-antidependency" | "ww-dependency";
+  type: "rw-antidependency";
+  /** Page whose read/write witnesses produced this edge. */
+  page: number;
 }
 
 export default function WitnessPlane() {
@@ -25,7 +27,7 @@ export default function WitnessPlane() {
   };
   const prevStep = () => {
     playSfx("click");
-    setStep((s) => Math.max(s - 0, 0));
+    setStep((s) => Math.max(s - 1, 0));
   };
   const reset = () => {
     playSfx("click");
@@ -57,25 +59,26 @@ export default function WitnessPlane() {
   // Edges based on step
   const edges: WitnessEdge[] = [];
   if (step >= 1) {
-    edges.push({ id: "e1", from: "T1", to: "T2", type: "rw-antidependency" });
+    edges.push({ id: "e1", from: "T1", to: "T2", type: "rw-antidependency", page: 4 });
   }
   if (step >= 2) {
-    edges.push({ id: "e2", from: "T2", to: "T3", type: "rw-antidependency" });
+    edges.push({ id: "e2", from: "T2", to: "T3", type: "rw-antidependency", page: 9 });
   }
 
   // Descriptions per step
   const stepInfo = [
-    "Three concurrent transactions are running. They don't block each other with locks. Instead, the Witness Plane quietly records their activity.",
-    "T1 read a page that T2 later modified. The Witness Plane records an 'RW-Antidependency' edge from T1 to T2. This is fine on its own.",
-    "T2 read a different page that T3 later modified. Another RW-Antidependency edge is recorded. We now have a dangerous structure: T2 is a 'pivot' with both incoming and outgoing edges.",
-    "At commit time, the validation engine detects this cycle (the Cahill/Fekete rule). To prevent a Write Skew anomaly, the engine aborts the pivot transaction (T2) mathematically guaranteeing serializability.",
+    "Three concurrent transactions are running. Reads take no locks. As they run, the engine records witnesses: which pages each transaction read and which pages it wrote.",
+    "T1 read page 4, and T2 writes page 4. T1 saw the version from before T2's change, so in any equivalent serial order T1 must come before T2. That is a read-write antidependency, T1 → T2. One edge on its own is harmless.",
+    "T2 read page 9, and T3 writes page 9: another edge, T2 → T3. T2 now has an rw edge coming in and one going out. Cahill and Fekete showed that every snapshot-isolation anomaly contains a transaction like this, called a pivot.",
+    "When T2 tries to commit, validation finds both edges and aborts it with SQLITE_BUSY_SNAPSHOT; the application retries it. The rule does not wait to see whether a full cycle forms (an edge T3 → T1 would close one), and it tracks pages rather than rows, so some of these aborts turn out to be unnecessary. It errs toward a retry rather than letting an anomaly through.",
   ];
 
   return (
     <VizContainer
       title="The Witness Plane"
-      description="SSI doesn't use heavyweight locks to prevent anomalies. It uses a 'Witness Plane', a background graph that tracks read-write antidependencies. If a dangerous cycle forms, it aborts the offending transaction before corruption occurs."
+      description="SSI does not lock rows to prevent anomalies. It keeps a record of what each transaction read and wrote, which the engine calls its witness plane, and uses it to find read-write antidependencies. A transaction that ends up with one coming in and one going out is aborted and retried."
       minHeight={420}
+      status="live"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 justify-between gap-6 relative overflow-hidden">
         {/* Viz Area */}
@@ -141,7 +144,7 @@ export default function WitnessPlane() {
                           textAnchor="middle"
                           fontWeight="bold"
                         >
-                          RW-Antidependency
+                          rw edge · page {edge.page}
                         </text>
                       </motion.g>
                     );
@@ -197,10 +200,10 @@ export default function WitnessPlane() {
                     <ShieldAlert className="w-6 h-6 text-red-500 shrink-0" />
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-widest text-red-400">
-                        Cahill/Fekete Rule Triggered
+                        Pivot found at commit
                       </div>
                       <div className="text-xs text-red-200">
-                        Pivot transaction aborted. Write skew prevented.
+                        T2 gets SQLITE_BUSY_SNAPSHOT and is retried.
                       </div>
                     </div>
                   </motion.div>
@@ -238,7 +241,7 @@ export default function WitnessPlane() {
               disabled={step === 3}
               className="px-4 py-2 rounded-lg bg-teal-500 text-black hover:bg-teal-400 disabled:opacity-30 disabled:hover:bg-teal-500 text-xs font-black transition-all focus-visible:ring-2 focus-visible:ring-teal-500/50 outline-none"
             >
-              {step === 3 ? "Protected" : "Next Event"}
+              {step === 3 ? "Done" : "Next Event"}
             </button>
           </div>
         </div>
@@ -248,54 +251,57 @@ export default function WitnessPlane() {
         whatItIs={
           <>
             <div>
-              You are looking at a live dependency graph that the database engine maintains silently
-              in the background, known as the{" "}
-              <FrankenJargon term="witness-plane">Witness Plane</FrankenJargon>.
+              A dependency graph built from the engine&apos;s{" "}
+              <FrankenJargon term="witness-plane">witness plane</FrankenJargon>, its name for the
+              read and write evidence that SSI works from.
             </div>
             <p>
-              In standard concurrency models, you either lock the data (which is slow) or you
-              don&apos;t (which risks silent corruption). The Witness Plane offers a third way: it
-              watches what transactions are doing and connects them with mathematically defined
-              edges.
+              In the current runtime the evidence is kept per page: a read records the page in a
+              sharded table of readers, and a write records the page as a write witness. Edges are
+              not drawn by a background process. They are found when a transaction commits, by
+              comparing its pages with those of the other transactions still in flight. Finer keys
+              (single cells or key ranges) and evidence shared across processes are part of the
+              design, not the live path.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Click <strong>Next Event</strong> to step through time. You will see a red arrow form
-              from T1 to T2. This is an{" "}
-              <FrankenJargon term="rw-antidependency">RW-Antidependency</FrankenJargon>: it means T1
-              read some data, and then T2 overwrote it.
+              Click <strong>Next Event</strong> to step through time. A red arrow forms from T1 to
+              T2. This is an{" "}
+              <FrankenJargon term="rw-antidependency">rw-antidependency</FrankenJargon>: T1 read a
+              page that T2 writes, so T1 did not see T2&apos;s change.
             </p>
             <p>
-              Click again. A second arrow forms from T2 to T3. Notice what happens to T2: it becomes
-              a &ldquo;Pivot&rdquo; node. It has an arrow pointing in, and an arrow pointing out.
+              Click again. A second arrow forms from T2 to T3, and T2 becomes a pivot: one arrow in,
+              one arrow out.
             </p>
             <div>
-              Click one last time. The engine recognizes this specific graphical structure (
-              <FrankenJargon term="cahill-fekete">The Cahill/Fekete Rule</FrankenJargon>) as
-              mathematically dangerous, and it immediately aborts the pivot transaction to prevent
-              corruption.
+              Click once more. At commit, the engine applies the conservative{" "}
+              <FrankenJargon term="cahill-fekete">Cahill/Fekete rule</FrankenJargon>: a
+              transaction with an rw edge in and an rw edge out is aborted with{" "}
+              <code>SQLITE_BUSY_SNAPSHOT</code>, and the application retries it.
             </div>
           </>
         }
         whyItMatters={
           <>
             <p>
-              Write Skew is a subtle database anomaly where no two transactions directly overwrite
-              each other&apos;s data, but their combined results violate an application invariant
-              (for example, two on-call doctors simultaneously taking the day off because each read
-              that the other was still working). Traditional{" "}
-              <FrankenJargon term="snapshot-isolation">Snapshot Isolation</FrankenJargon> does not
+              Write skew is an anomaly where no two transactions overwrite each other&apos;s data,
+              but together they break a rule the application relies on. The textbook example is
+              two on-call doctors who each check that the other is still on call and then both sign
+              off. Plain{" "}
+              <FrankenJargon term="snapshot-isolation">snapshot isolation</FrankenJargon> does not
               prevent it.
             </p>
             <p>
-              The Witness Plane prevents Write Skew without locks. Under{" "}
-              <FrankenJargon term="ssi">Serializable Snapshot Isolation</FrankenJargon>, it allows
-              full read/write concurrency to proceed unimpeded, intervening only at commit time when
-              a dangerous <FrankenJargon term="rw-antidependency">RW-Antidependency</FrankenJargon>{" "}
-              cycle forms in the dependency graph.
+              <FrankenJargon term="ssi">Serializable Snapshot Isolation</FrankenJargon> prevents it
+              without making readers lock rows. Reads and writes proceed normally and the check
+              runs at commit. The price is some unnecessary aborts, because the rule does not wait
+              for a full cycle and works at page granularity. FrankenSQLite turns SSI on by
+              default; <code>PRAGMA fsqlite.serializable = OFF</code> drops back to plain snapshot
+              isolation.
             </p>
           </>
         }

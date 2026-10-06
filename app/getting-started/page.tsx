@@ -64,7 +64,7 @@ export default function GettingStartedPage() {
           <div className="absolute top-0 left-1/4 w-[600px] h-[600px] bg-teal-500/5 rounded-full blur-[120px]" />
         </div>
         <div className="relative z-10 mx-auto max-w-4xl px-6 text-left">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/5 text-[10px] font-black uppercase tracking-[0.3em] text-teal-500 mb-8">
+          <div className="flex w-fit items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/5 text-[10px] font-black uppercase tracking-[0.3em] text-teal-500 mb-8">
             <Rocket className="h-3 w-3" />
             v{engineSnapshot.version} &middot; {engineSnapshot.releasedOn}
           </div>

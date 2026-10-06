@@ -11,9 +11,14 @@ import { VizExposition } from "./viz-exposition";
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const TOTAL_PAGES = 16;
+/* Illustrative numbers. They follow the engine's repair-budget policy
+   (crates/fsqlite-core/src/repair_symbols.rs): R = max(2, ceil(K * overhead%)),
+   with 2 symbols held back as decode slack, so R - 2 losses fit the budget. */
+const TOTAL_PAGES = 16; // K source symbols
 const OVERHEAD_PCT = 20;
-const MAX_CORRUPT_BEFORE_FAILURE = Math.floor(TOTAL_PAGES * (OVERHEAD_PCT / 100));
+const DECODE_SLACK = 2;
+const REPAIR_SYMBOLS = Math.max(DECODE_SLACK, Math.ceil((TOTAL_PAGES * OVERHEAD_PCT) / 100)); // R = 4
+const MAX_CORRUPT_BEFORE_FAILURE = REPAIR_SYMBOLS - DECODE_SLACK; // 2
 const RECOVERY_DELAY_MS = 800;
 const RECOVERY_DURATION_MS = 1200;
 
@@ -50,23 +55,26 @@ function initPages(): PageState[] {
   }));
 }
 
-/** Compute P(data loss) <= C(K+R, K) * p^(R+1) using log space */
-function computeDurability(K: number, p: number, overheadPct: number) {
-  const R = Math.floor((overheadPct / 100) * K);
-  if (R <= 0 || p <= 0) return { pLoss: 0, nines: Infinity, R };
+/**
+ * Toy model only: N = K + R symbols fail independently with probability p, and
+ * an ideal decoder needs any K of them. Union bound on losing more than R:
+ *   P(> R lost) <= C(K+R, R+1) * p^(R+1)
+ * Computed in log space. This is not a durability figure for FrankenSQLite.
+ */
+function computeToyLossBound(K: number, p: number, overheadPct: number) {
+  const R = Math.ceil((overheadPct / 100) * K);
+  if (p <= 0) return { pLoss: 0, R };
 
-  // log10 of C(K+R, R) using Stirling-like summation
-  // C(K+R, R) = product_{i=1}^{R} (K + i) / i
+  // log10 C(K+R, R+1) = sum_{i=1}^{R+1} log10((K - 1 + i) / i)
   let logComb = 0;
-  for (let i = 1; i <= R; i++) {
-    logComb += Math.log10(K + i) - Math.log10(i);
+  for (let i = 1; i <= R + 1; i++) {
+    logComb += Math.log10(K - 1 + i) - Math.log10(i);
   }
 
-  const logPLoss = logComb + (R + 1) * Math.log10(p);
+  const logPLoss = Math.min(0, logComb + (R + 1) * Math.log10(p));
   const pLoss = logPLoss < -300 ? 0 : 10 ** logPLoss;
-  const nines = logPLoss < -300 ? 300 : -logPLoss;
 
-  return { pLoss, nines, R };
+  return { pLoss, R };
 }
 
 function formatExponent(val: number): string {
@@ -236,21 +244,25 @@ function StatusPanel({
   return (
     <div className="rounded-xl border border-white/10 bg-black/40 p-3 md:p-4 space-y-3">
       <div className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-500">
-        Recovery Status
+        Recovery Status (simulated)
       </div>
 
       <div className="space-y-2">
         <StatusRow
-          label="Pages corrupted"
+          label="Damaged pages"
           value={`${corrupted}/${TOTAL_PAGES}`}
           color={corrupted > 0 ? "text-red-400" : "text-emerald-400"}
         />
         <StatusRow
-          label="Repair symbols"
+          label={`Repair symbols (${OVERHEAD_PCT}%)`}
+          value={`${REPAIR_SYMBOLS}`}
+          color="text-slate-300"
+        />
+        <StatusRow
+          label="Loss budget left"
           value={`${Math.max(0, symbolsAvailable)}`}
           color={symbolsAvailable <= 0 ? "text-red-400" : "text-teal-400"}
         />
-        <StatusRow label="Overhead budget" value={`${OVERHEAD_PCT}%`} color="text-slate-300" />
         <StatusRow label="Repaired pages" value={`${repaired}`} color="text-teal-400" />
       </div>
 
@@ -277,7 +289,7 @@ function StatusPanel({
           >
             <Zap className="h-4 w-4 text-blue-300 shrink-0 mt-0.5" />
             <span className="text-xs text-blue-200 leading-relaxed">
-              RaptorQ fountain codes repairing corrupted pages...
+              Simulated RaptorQ decode rebuilding the damaged pages...
             </span>
           </motion.div>
         ) : (
@@ -290,7 +302,7 @@ function StatusPanel({
           >
             <ShieldCheck className="h-4 w-4 text-emerald-400 shrink-0 mt-0.5" />
             <span className="text-xs text-emerald-300 leading-relaxed">
-              All pages healthy. Click a page to simulate corruption.
+              All pages intact. Click a page to simulate damage.
             </span>
           </motion.div>
         )}
@@ -319,21 +331,21 @@ function FountainCodesExplainer() {
       color: "text-teal-400",
       borderColor: "border-teal-500/20",
       bgColor: "bg-teal-500/5",
-      text: "The engine splits page groups into K source symbols. RaptorQ generates R extra repair symbols from those sources. Both are stored alongside the data on disk.",
+      text: "RaptorQ treats a block of data as K source symbols and computes R repair symbols from them. Today, file-backed connections can write repair symbols for each WAL commit to a separate -wal-fec sidecar file; the source symbols stay in the WAL.",
     },
     {
       title: "Detect",
       color: "text-amber-400",
       borderColor: "border-amber-500/20",
       bgColor: "bg-amber-500/5",
-      text: "Every read checksums each page. A failed checksum marks the page as corrupted and triggers the recovery path. No manual intervention required.",
+      text: "Checksums find damage: SQLite's WAL frame checksums today, and a per-symbol XXH3 check in the native-mode design. A checksum only says something is wrong. The default runtime does not yet answer a failed check with a repair.",
     },
     {
       title: "Reconstruct",
       color: "text-emerald-400",
       borderColor: "border-emerald-500/20",
       bgColor: "bg-emerald-500/5",
-      text: "As long as any K symbols out of the total K+R survive (any mix of source and repair), RaptorQ solves linear equations over GF(256) to reconstruct the lost data exactly.",
+      text: "With about K intact symbols (any mix of source and repair) the decoder solves a linear system over GF(256) to rebuild the missing ones. Exactly K is usually enough; one or two extra symbols make decode failure much rarer (RFC 6330 §5.8).",
     },
   ] as const;
 
@@ -360,37 +372,44 @@ function FountainCodesExplainer() {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Durability Calculator                                              */
+/*  Toy loss model                                                     */
 /* ------------------------------------------------------------------ */
 
-function DurabilityCalculator() {
-  const [K, setK] = useState(10000);
-  const [pExp, setPExp] = useState(-4); // log10(p)
+function ToyLossModel() {
+  const [K, setK] = useState(1000);
+  const [pExp, setPExp] = useState(-3); // log10(p)
   const [overhead, setOverhead] = useState(20);
 
   const p = 10 ** pExp;
 
-  const { pLoss, nines, R } = useMemo(() => computeDurability(K, p, overhead), [K, p, overhead]);
+  const { pLoss, R } = useMemo(() => computeToyLossBound(K, p, overhead), [K, p, overhead]);
 
   return (
     <div className="rounded-xl border border-white/10 bg-black/40 p-3 md:p-4 space-y-4">
-      <div className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-500">
-        Durability Calculator
+      <div className="space-y-1">
+        <div className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-500">
+          Toy Model: Independent Symbol Loss
+        </div>
+        <p className="text-[10px] text-slate-500 leading-relaxed">
+          A textbook simplification, not a FrankenSQLite durability figure. It assumes symbols fail
+          independently and an ideal decoder that needs exactly K symbols. Real failures are
+          correlated, and the project publishes no end-to-end durability number.
+        </p>
       </div>
 
       {/* Sliders */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <SliderWithLabel
-          label="Pages (K)"
+          label="Source symbols (K)"
           min={100}
-          max={100000}
+          max={50000}
           step={100}
           value={K}
           onChange={setK}
           display={K.toLocaleString()}
         />
         <SliderWithLabel
-          label="Corruption prob (p)"
+          label="Per-symbol loss prob (p)"
           min={-6}
           max={-2}
           step={0.5}
@@ -412,17 +431,17 @@ function DurabilityCalculator() {
       {/* Formula and results */}
       <div className="rounded-lg border border-white/5 bg-white/[0.02] p-3 space-y-2">
         <div className="text-[10px] text-slate-500 font-mono leading-relaxed">
-          P(loss) &le; C(K+R, K) &times; p^(R+1)
+          P(more than R of K+R lost) &le; C(K+R, R+1) &times; p^(R+1)
         </div>
         <div className="flex flex-wrap gap-x-4 gap-y-0.5 text-[10px] text-slate-600 leading-relaxed">
           <span>
-            <strong className="text-slate-400">K</strong> = source data pages in a group
+            <strong className="text-slate-400">K</strong> = source symbols in one block
           </span>
           <span>
-            <strong className="text-slate-400">R</strong> = extra repair symbols (from overhead %)
+            <strong className="text-slate-400">R</strong> = repair symbols (from overhead %)
           </span>
           <span>
-            <strong className="text-slate-400">p</strong> = probability any single page is corrupted
+            <strong className="text-slate-400">p</strong> = chance a given symbol is lost
           </span>
         </div>
         <div className="text-[10px] text-slate-500 font-mono">
@@ -431,32 +450,10 @@ function DurabilityCalculator() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6 pt-1">
           <div>
             <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-0.5">
-              P(data loss)
+              Union bound (toy model)
             </div>
             <div className="text-sm font-black text-white tabular-nums">
               {formatExponent(pLoss)}
-            </div>
-          </div>
-          <div>
-            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-0.5">
-              Nines of Durability
-            </div>
-            <div className="text-sm font-black text-teal-400 tabular-nums">
-              {nines >= 300 ? "> 300" : nines.toFixed(1)}
-            </div>
-          </div>
-          <div>
-            <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 mb-0.5">
-              vs. S3 (11 nines)
-            </div>
-            <div className="text-sm font-black tabular-nums">
-              {nines >= 300 ? (
-                <span className="text-teal-400">Far exceeds S3</span>
-              ) : nines >= 11 ? (
-                <span className="text-teal-400">{(nines / 11).toFixed(1)}x S3</span>
-              ) : (
-                <span className="text-amber-400">{(nines / 11).toFixed(1)}x S3</span>
-              )}
             </div>
           </div>
         </div>
@@ -545,7 +542,7 @@ export default function RaptorQHealing() {
       // Check if corruption would exceed repair capacity
       if (currentlyBroken >= MAX_CORRUPT_BEFORE_FAILURE) {
         setFailureMessage(
-          "Insufficient repair symbols -- RaptorQ overhead budget exceeded. Too many simultaneous corruptions to recover.",
+          `Loss budget exceeded. ${REPAIR_SYMBOLS} repair symbols minus ${DECODE_SLACK} held as decode slack leaves room for ${MAX_CORRUPT_BEFORE_FAILURE} lost pages at once. Wait for a repair to finish, or reset.`,
         );
         return prev;
       }
@@ -630,12 +627,14 @@ export default function RaptorQHealing() {
 
   return (
     <VizContainer
-      title="RaptorQ Self-Healing Demo"
+      title="RaptorQ Repair, Illustrated"
+      status="partial"
       description={
         <>
-          Click database pages to corrupt them and watch{" "}
-          <FrankenJargon term="raptorq">RaptorQ fountain codes</FrankenJargon> automatically repair
-          the damage. With 20% overhead, up to 3 simultaneous page failures can be recovered.
+          A simulation of how <FrankenJargon term="raptorq">RaptorQ fountain codes</FrankenJargon>{" "}
+          rebuild lost data. Numbers are illustrative. FrankenSQLite can write RaptorQ repair
+          symbols for the WAL today, but its normal recovery path does not use them yet, so
+          nothing is repaired automatically.
         </>
       }
       minHeight={480}
@@ -647,7 +646,7 @@ export default function RaptorQHealing() {
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <div className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500">
-                Database Pages
+                Source Pages (K = {TOTAL_PAGES}, illustrative)
               </div>
               <button
                 onClick={reset}
@@ -685,62 +684,61 @@ export default function RaptorQHealing() {
         {/* Fountain Codes Explainer */}
         <FountainCodesExplainer />
 
-        {/* Durability Calculator */}
-        <DurabilityCalculator />
+        {/* Toy probability model */}
+        <ToyLossModel />
       </div>
 
       <VizExposition
         whatItIs={
           <>
             <div>
-              You are looking at a simulation of{" "}
-              <FrankenJargon term="raptorq">RaptorQ (RFC 6330) Fountain Codes</FrankenJargon>.
-              Standard databases rely entirely on the underlying hardware or filesystem (like ZFS)
-              to prevent data loss. FrankenSQLite bakes mathematical erasure coding directly into
-              the storage engine.
+              A simulation of{" "}
+              <FrankenJargon term="raptorq">RaptorQ (RFC 6330) fountain coding</FrankenJargon>. The
+              encoder takes K source symbols and computes extra{" "}
+              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>. If some symbols
+              are lost, roughly K intact ones, in any mix, are enough to rebuild the rest.
             </div>
-            <p>
-              For every block of data written, the engine generates extra{" "}
-              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> and stores them
-              sequentially in the <FrankenJargon term="wal">WAL</FrankenJargon>.
-            </p>
+            <div>
+              What ships today: file-backed connections with a blocking thread pool (the CLI has
+              one) write repair symbols for each <FrankenJargon term="wal">WAL</FrankenJargon>{" "}
+              commit to a separate <FrankenJargon term="wal-fec">-wal-fec</FrankenJargon> sidecar,
+              after the WAL fsync. <code>PRAGMA raptorq_repair_symbols</code> sets how many
+              (default 2; 0 turns it off). On Unix, an explicit administrative repair call can use
+              the sidecar to rebuild damaged WAL frames. Ordinary opens and crash recovery do not
+              read it yet.
+            </div>
           </>
         }
         howToUse={
           <>
             <p>
-              Click on any of the green healthy pages in the grid to simulate a &ldquo;bit
-              rot&rdquo; event or bad disk sector.
+              Click a green page to simulate damage, such as a bad sector. The simulated decoder
+              rebuilds it from the surviving pages and the repair symbols.
             </p>
             <div>
-              Notice how the engine immediately detects the corruption via checksums, pauses the
-              read, grabs the blue{" "}
-              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>, and performs{" "}
-              <FrankenJargon term="gf256">GF(256)</FrankenJargon> math to perfectly reconstruct the
-              lost <FrankenJargon term="btree">B-tree page</FrankenJargon>. Try corrupting 3 pages
-              at once!
+              The numbers are illustrative but follow the engine&apos;s repair-budget rule: 16
+              source pages at 20% overhead get 4 repair symbols, and 2 of those are held back as
+              decode slack, so the budget covers 2 lost pages at once. Damage a third page while two
+              are still being repaired and the simulation reports that the budget is exceeded.
             </div>
             <p>
-              If you corrupt 4 pages, the recovery fails because the damage exceeded the 20%
-              overhead budget.
+              The toy model below shows why a modest overhead goes a long way when failures are
+              independent. Real failures often are not.
             </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              Silent data corruption occurs regularly at scale. Studies from Google and CERN report
-              bit-flip rates of 1 in 10^7 per drive per hour. If a{" "}
-              <FrankenJargon term="btree">B-tree page</FrankenJargon> is silently corrupted, a
-              standard database will not detect the error until a read encounters the damaged
-              sector, potentially weeks later. By that point, backups may also contain the corrupted
-              data, and recovery requires hours of downtime replaying a full <code>.sql</code> dump.
+              Disks and controllers sometimes return bad data, and a checksum can only report that
+              something is wrong. SQLite&apos;s WAL frame checksums catch a damaged frame, and
+              recovery stops there: that frame and everything after it in the WAL are discarded.
             </p>
             <p>
-              FrankenSQLite provides mathematical data-loss guarantees by healing corrupted pages in
-              microseconds during normal read operations. This gives you ZFS-level enterprise
-              durability on any standard filesystem without requiring specialized hardware or a
-              replicated storage layer.
+              Erasure coding adds a way to rebuild the data from a modest amount of extra
+              redundancy instead of a full second copy. In FrankenSQLite this is mostly groundwork
+              today. Repair symbols are written, and wiring the decoder into ordinary recovery is
+              open work. The project does not publish a durability number for it.
             </p>
           </>
         }

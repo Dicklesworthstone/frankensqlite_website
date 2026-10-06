@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { engineSnapshot } from "../../lib/site-config";
 import {
   assertNoConsoleErrors,
   captureConsole,
@@ -51,15 +52,16 @@ test.describe("Route smoke tests", () => {
     await expect(page.locator("h1").first()).toContainText(/Architecture/i);
 
     // All 6 layers render (use exact matching to avoid ambiguity)
-    await expect(page.getByRole("heading", { name: "Foundation" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Storage" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Concurrency & Durability" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "SQL Engine" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Extensions" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Integration" })).toBeVisible();
+    for (const layer of ["Foundation", "Storage", "SQL", "Extensions", "Integration", "Verification"]) {
+      await expect(page.getByRole("heading", { name: layer, exact: true })).toBeVisible();
+    }
+
+    // Every topic is labeled with a status
+    await expect(page.getByRole("heading", { name: "The Safe Merge Ladder" })).toBeVisible();
+    await expect(page.getByText("Built, not wired").first()).toBeVisible();
 
     // Crate grid renders with correct count
-    await expect(page.getByText("All 26 Crates")).toBeVisible();
+    await expect(page.getByText(`All ${engineSnapshot.workspaceCrates} Crates`)).toBeVisible();
 
     await takeAnnotatedScreenshot(page, "architecture");
     assertNoConsoleErrors(consoleLogs);
@@ -72,11 +74,15 @@ test.describe("Route smoke tests", () => {
 
     await expect(page.locator("h1").first()).toContainText(/Get/i);
 
-    // Installation command present
+    // Installation commands present
     await expect(page.getByText(/cargo add fsqlite/).first()).toBeVisible();
+    await expect(page.getByText(/install\.sh/).first()).toBeVisible();
+
+    // The unwired encryption PRAGMA is called out, not recommended
+    await expect(page.getByText(/What not to rely on yet/).first()).toBeVisible();
 
     // FAQ section
-    await expect(page.getByText(/Why FrankenSQLite/).first()).toBeVisible();
+    await expect(page.getByText(/What is FrankenSQLite\?/).first()).toBeVisible();
 
     await takeAnnotatedScreenshot(page, "getting-started");
     assertNoConsoleErrors(consoleLogs);

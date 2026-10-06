@@ -7,8 +7,10 @@ import { FrankenJargon } from "@/components/franken-jargon";
 import VizContainer from "./viz-container";
 import { VizExposition } from "./viz-exposition";
 
-const HASHTABLE_NSLOT = 16; // scaled down for viz
-const MULTIPLIER = 3; // scaled down prime
+// Scaled down for the demo. SQLite (and FrankenSQLite's compatible codec in
+// crates/fsqlite-wal/src/wal_index.rs) uses 8192 slots and (pgno * 383) & 8191.
+const HASHTABLE_NSLOT = 16;
+const MULTIPLIER = 3;
 const EMPTY = 0;
 
 interface HashSlot {
@@ -24,9 +26,10 @@ export default function WalIndexShm() {
   const [searchPath, setSearchPath] = useState<number[]>([]);
   const [foundSlot, setFoundSlot] = useState<number | null>(null);
 
-  // Initialize some data
+  // Initialize some data. Page 19 and page 99 both hash to slot 9, so looking up
+  // page 99 shows a collision resolved by linear probing.
   useEffect(() => {
-    const initialPages = [42, 12, 99, 7];
+    const initialPages = [42, 19, 99, 7];
     const newSlots = Array(HASHTABLE_NSLOT).fill({ page_number: EMPTY, frame_offset: 0 });
 
     initialPages.forEach((pg, i) => {
@@ -83,12 +86,13 @@ export default function WalIndexShm() {
     activeIntervalRef.current = interval;
   };
 
-  const pagesToSearch = [42, 99, 15]; // 42 is hit, 99 is hit (maybe collision), 15 is miss
+  const pagesToSearch = [42, 99, 15]; // 42: direct hit, 99: collision then hit, 15: miss
 
   return (
     <VizContainer
-      title="Lock-Free WAL Index in SHM"
-      description="Readers need to find the latest version of a page in the WAL without acquiring locks. They scan a shared-memory (-shm) hash table using open addressing and linear probing, resolving lookups without blocking."
+      title="SQLite's WAL Index (-shm)"
+      status="live"
+      description="SQLite's WAL index is a hash table in the shared-memory -shm file that maps page numbers to WAL frames. It is SQLite's design. FrankenSQLite implements the same format so stock SQLite processes can read WAL commits that FrankenSQLite publishes."
       minHeight={400}
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 gap-8 justify-between">
@@ -96,7 +100,7 @@ export default function WalIndexShm() {
         <div className="flex justify-between items-center border-b border-white/10 pb-4">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
             <Hash className="w-4 h-4" />
-            Reader Query
+            Reader Query (16-slot demo)
           </div>
           <div className="flex gap-2">
             {pagesToSearch.map((pg) => (
@@ -188,9 +192,10 @@ export default function WalIndexShm() {
         <div className="flex items-center gap-4 bg-teal-500/10 border border-teal-500/20 rounded-xl p-4 text-xs text-teal-100/70 font-medium">
           <FastForward className="w-6 h-6 text-teal-400 shrink-0" />
           <p>
-            Because the load factor is strictly kept below 0.5, linear probing almost always finds
-            the target (or an empty slot) in 1 or 2 jumps. Since the table lives in a memory-mapped{" "}
-            <code>-shm</code> file, there are zero system calls and zero locks involved in this
+            In the real format each 32 KiB segment has 8,192 hash slots for at most 4,096 frames,
+            so a table is never more than half full and probe chains stay short. The hash is{" "}
+            <code>(pgno × 383) &amp; 8191</code>. In C SQLite, readers probe this table directly in
+            mapped memory; they take a read-mark lock when a read transaction starts, not per
             lookup.
           </p>
         </div>
@@ -200,47 +205,49 @@ export default function WalIndexShm() {
         whatItIs={
           <>
             <div>
-              You are looking at a simulation of the <code>-shm</code> (Shared Memory) file, which
-              contains the <FrankenJargon term="wal-index">WAL Index</FrankenJargon>. It is a flat
-              array representing a hash table.
+              A scaled-down simulation of the <FrankenJargon term="wal-index">WAL index</FrankenJargon>{" "}
+              in SQLite&apos;s <code>-shm</code> file. In WAL mode, commits append page images to
+              the <FrankenJargon term="wal">WAL</FrankenJargon>, and readers need to find the newest
+              frame for a page without scanning the whole log. This hash table is how SQLite does
+              it.
             </div>
-            <div>
-              Because <FrankenJargon term="mvcc">MVCC</FrankenJargon> writers continuously append
-              new page versions to the <FrankenJargon term="wal">WAL</FrankenJargon>, readers need a
-              way to figure out the exact frame offset where the most recent version of a page
-              lives, and they need to do it without blocking the writers.
-            </div>
+            <p>
+              The demo simplifies the layout. In the real file a hash slot holds a frame index, and
+              the page number sits in a parallel array; here each slot shows both.
+            </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Click <strong>Find Page 42</strong>. Watch the math formula at the top compute the
-              hash: <code>(42 × 3) % 16 = 14</code>. The reader jumps directly to slot 14 in the
-              array and instantly finds the frame offset for Page 42.
+              Click <strong>Find Page 42</strong>. The hash is <code>(42 × 3) % 16 = 14</code>, so
+              the reader goes straight to slot 14 and finds the frame for page 42.
             </p>
             <p>
-              Now click <strong>Find Page 99</strong>. The hash computes to slot 9. The reader jumps
-              there, but wait! Slot 9 is already taken by Page 12 (a hash collision). The reader
-              simply steps forward to the next slot (linear probing) and successfully finds Page 99
-              in slot 10.
+              Click <strong>Find Page 99</strong>. It hashes to slot 9, which page 19 already holds
+              (a collision). The reader steps to the next slot (linear probing) and finds page 99
+              in slot 10. <strong>Find Page 15</strong> lands on an empty slot, which means the
+              page is not in the WAL and is read from the database file.
+            </p>
+            <p>
+              The real lookup also checks the newest segment first and keeps probing to the
+              newest matching frame, since one page can appear in the WAL many times.
             </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              In standard concurrency models, readers and writers contend on a shared Mutex to
-              safely access an index structure. Under high concurrency, thousands of queries
-              serialize on that single lock.
+              The format is SQLite&apos;s, so matching it exactly is what lets stock SQLite and
+              FrankenSQLite share a WAL database. On Unix, FrankenSQLite writers publish frame and
+              hash entries plus the WAL-index headers into <code>-shm</code>, respect reader marks,
+              and coordinate checkpoints and resets with stock SQLite processes.
             </p>
             <p>
-              Because the <FrankenJargon term="wal-index">WAL Index</FrankenJargon> is a heavily
-              over-provisioned hash table (load factor strictly capped below 0.5) stored in
-              memory-mapped POSIX shared memory, linear probing resolves collisions almost
-              instantly. Readers can locate their data with zero system calls and zero blocking
-              locks, enabling <FrankenJargon term="mvcc">MVCC</FrankenJargon> read throughput to
-              scale linearly with available cores.
+              FrankenSQLite&apos;s own readers check the shared header, then look pages up in an
+              in-process map of published frames instead of probing <code>-shm</code>. On Windows
+              the <code>-shm</code> contents are process-local, so mixing stock SQLite and
+              FrankenSQLite WAL connections on one database is not supported there.
             </p>
           </>
         }

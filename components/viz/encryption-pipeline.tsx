@@ -24,37 +24,37 @@ const STEPS: Step[] = [
   {
     label: "Plaintext page",
     description:
-      "A 4KB database page stored as raw bytes. The structured pattern is visible; anyone with disk access reads this.",
+      "A 4 KiB database page as raw bytes. Anyone who can read the file can read this. Today this is what FrankenSQLite writes, even if you set PRAGMA key.",
   },
   {
     label: "Passphrase",
     description:
-      "The user provides a passphrase. This is the only secret; everything else is derived deterministically.",
+      "In the design, the user supplies a passphrase with PRAGMA key (not dispatched yet). The key that encrypts pages is random; the passphrase only protects it.",
   },
   {
     label: "Argon2id key derivation",
     description:
-      "Argon2id stretches the passphrase using 64MB of memory, 3 iterations, 1 lane. Deliberately slow and memory-hungry, making GPU brute-force impractical.",
+      "Argon2id turns the passphrase and a random 16-byte salt into a 256-bit key-encryption key (KEK). Code defaults: 64 MiB of memory, 3 passes, 4 lanes. The KEK wraps the random 256-bit data key (DEK).",
   },
   {
     label: "Nonce + AAD",
     description:
-      "A 24-byte random nonce is generated. The page number is bound as Associated Authenticated Data (AAD), tying ciphertext to its position.",
+      "Each page write draws a fresh random 24-byte nonce. The page number and a 16-byte database ID are bound as associated data (AAD), tying the ciphertext to its position and its database.",
   },
   {
     label: "Encrypt",
     description:
-      "XChaCha20 encrypts the page byte-by-byte. Poly1305 computes an authentication tag. The structured pattern vanishes into randomness.",
+      "XChaCha20 encrypts the page body with the DEK and nonce. Poly1305 computes a 16-byte tag over the ciphertext and the AAD. The visible structure disappears.",
   },
   {
     label: "On-disk format",
     description:
-      "Ciphertext + 16-byte Poly1305 tag + 24-byte nonce. One compromised page reveals nothing about others. Each has a unique nonce.",
+      "The page keeps its size. Its last 40 reserved bytes hold the 24-byte nonce and the 16-byte tag, so a 4,096-byte page carries 4,056 bytes of ciphertext. Rewriting a page uses a new nonce.",
   },
   {
     label: "Decrypt & verify",
     description:
-      "On read: tag verified first. If any byte was tampered, decryption is rejected before it starts. Integrity proven, then plaintext restored.",
+      "On read, the tag is checked against the ciphertext, page number and database ID. If anything was altered, the read fails and no plaintext is returned.",
   },
 ];
 
@@ -164,7 +164,8 @@ function InfoPanel({
           <span className="text-xs font-black uppercase tracking-wider">Unprotected</span>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Raw B-tree page on disk. Structured data with visible patterns.
+          Raw B-tree page on disk, with visible structure. This is how FrankenSQLite stores pages
+          today, with or without <code>PRAGMA key</code>.
         </p>
       </div>
     ),
@@ -178,7 +179,9 @@ function InfoPanel({
           <code className="text-xs font-mono text-amber-300">correct-horse-battery-staple</code>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          The only user-provided secret. Everything else is derived.
+          The only secret the user supplies. It protects the random data key rather than
+          encrypting pages directly. Planned entry point: <code>PRAGMA key</code>, which is
+          currently ignored.
         </p>
       </div>
     ),
@@ -191,7 +194,7 @@ function InfoPanel({
         <div className="space-y-2 text-xs">
           <div className="flex items-center justify-between">
             <span className="text-slate-500 font-mono">memory</span>
-            <span className="text-purple-300 font-bold">64 MB</span>
+            <span className="text-purple-300 font-bold">64 MiB</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-slate-500 font-mono">iterations</span>
@@ -199,11 +202,15 @@ function InfoPanel({
           </div>
           <div className="flex items-center justify-between">
             <span className="text-slate-500 font-mono">parallelism</span>
-            <span className="text-purple-300 font-bold">1 lane</span>
+            <span className="text-purple-300 font-bold">4 lanes</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-slate-500 font-mono">salt</span>
+            <span className="text-purple-300 font-bold">16 random bytes</span>
           </div>
           <div className="flex items-center justify-between">
             <span className="text-slate-500 font-mono">output</span>
-            <span className="text-purple-300 font-bold">256-bit key</span>
+            <span className="text-purple-300 font-bold">256-bit KEK</span>
           </div>
         </div>
         <div className="h-2 rounded-full bg-white/5 overflow-hidden">
@@ -214,7 +221,10 @@ function InfoPanel({
             transition={{ duration: prefersReducedMotion ? 0 : 2, ease: "easeInOut" }}
           />
         </div>
-        <p className="text-[10px] text-slate-500">GPU brute-force: impractical</p>
+        <p className="text-[10px] text-slate-500 leading-relaxed">
+          Memory-hard, so every passphrase guess costs time and 64 MiB of RAM. The KEK then wraps
+          the DEK; rekey re-wraps the DEK without touching pages.
+        </p>
       </div>
     ),
     3: (
@@ -231,13 +241,18 @@ function InfoPanel({
             </code>
           </div>
           <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 px-3 py-2">
-            <div className="text-[9px] text-slate-500 font-mono mb-1">AAD (page number)</div>
-            <code className="text-[10px] font-mono text-teal-300">page_id: 1204</code>
+            <div className="text-[9px] text-slate-500 font-mono mb-1">
+              AAD (page number ‖ database ID)
+            </div>
+            <code className="text-[10px] font-mono text-teal-300 break-all">
+              be_u32(1204) ‖ database_id[16]
+            </code>
           </div>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Every page gets a unique nonce. The page number is bound as AEAD, so moving ciphertext to
-          a different page is detected.
+          Every page write gets a fresh random nonce. Because the page number and database ID are
+          bound as associated data, ciphertext moved to another page or another database fails
+          authentication.
         </p>
       </div>
     ),
@@ -248,8 +263,8 @@ function InfoPanel({
           <span className="text-xs font-black uppercase tracking-wider">XChaCha20-Poly1305</span>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          XChaCha20 encrypts. Poly1305 authenticates. Each byte transforms independently, and the
-          structured pattern vanishes.
+          XChaCha20 XORs the page body with a keystream derived from the DEK and nonce. Poly1305
+          authenticates the ciphertext and the associated data. The structure disappears.
         </p>
       </div>
     ),
@@ -262,19 +277,25 @@ function InfoPanel({
         <div className="space-y-1 text-xs font-mono text-slate-500">
           <div className="flex items-center justify-between">
             <span>ciphertext</span>
-            <span className="text-teal-400">4,096 bytes</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span>poly1305 tag</span>
-            <span className="text-amber-400">16 bytes</span>
+            <span className="text-teal-400">4,056 bytes</span>
           </div>
           <div className="flex items-center justify-between">
             <span>nonce</span>
             <span className="text-blue-400">24 bytes</span>
           </div>
+          <div className="flex items-center justify-between">
+            <span>poly1305 tag</span>
+            <span className="text-amber-400">16 bytes</span>
+          </div>
+          <div className="flex items-center justify-between border-t border-white/5 pt-1">
+            <span>page total</span>
+            <span className="text-slate-300">4,096 bytes</span>
+          </div>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          One compromised page reveals nothing about others.
+          Nonce and tag live in the page&apos;s reserved bytes, so the database needs{" "}
+          <code>reserved_bytes</code> of at least 40. Wrapped by the KEK, the DEK is a 72-byte
+          blob (nonce, encrypted key, tag).
         </p>
       </div>
     ),
@@ -293,11 +314,11 @@ function InfoPanel({
           >
             <ShieldCheck className="h-4 w-4 text-emerald-400" />
           </motion.div>
-          <span className="text-xs font-bold text-emerald-400">Tag verified, integrity proven</span>
+          <span className="text-xs font-bold text-emerald-400">Tag verified</span>
         </div>
         <p className="text-xs text-slate-400 leading-relaxed">
-          Tampered data is rejected before decryption. Plaintext restored only after authentication
-          succeeds.
+          A wrong key, a flipped bit or a page moved from elsewhere fails authentication, and no
+          plaintext is returned. Plaintext comes back only after the tag checks out.
         </p>
       </div>
     ),
@@ -356,10 +377,21 @@ export default function EncryptionPipeline() {
   return (
     <VizContainer
       title="Page Encryption Pipeline"
-      description="Watch XChaCha20-Poly1305 encrypt a 4KB page with Argon2id-derived keys."
+      status="dormant"
+      description="The design for XChaCha20-Poly1305 page encryption with an Argon2id-protected key. The code exists in fsqlite-pager but is not wired in: PRAGMA key is silently ignored and the database is written unencrypted."
       minHeight={420}
     >
       <div className="p-4 md:p-6 space-y-4">
+        {/* Not-wired warning */}
+        <div className="flex items-start gap-2 rounded-lg border border-orange-400/30 bg-orange-400/5 px-3 py-2 text-[11px] leading-relaxed text-orange-200">
+          <Unlock className="h-3.5 w-3.5 shrink-0 mt-0.5 text-orange-300" />
+          <span>
+            Not active today. <code>PRAGMA key</code> and <code>PRAGMA rekey</code> are not
+            implemented, unknown PRAGMAs are ignored without an error, and pages are written in
+            plaintext. Do not rely on FrankenSQLite for encryption at rest yet.
+          </span>
+        </div>
+
         {/* Status badge */}
         <div className="flex items-center gap-3">
           <span
@@ -408,44 +440,51 @@ export default function EncryptionPipeline() {
         whatItIs={
           <>
             <p>
-              You are looking at the page-level encryption pipeline. It demonstrates how a 4KB
-              B-Tree page (represented by the grid of bytes) is cryptographically secured before
-              being written to disk.
+              A walk through FrankenSQLite&apos;s page-encryption design, using a 4 KiB{" "}
+              <FrankenJargon term="btree">B-tree</FrankenJargon> page (the grid of bytes). The code
+              (<code>PageEncryptor</code> and <code>KeyManager</code> in <code>fsqlite-pager</code>)
+              exists and has tests, but no connection calls it.
+            </p>
+            <p>
+              <code>PRAGMA key</code> and <code>PRAGMA rekey</code> are not implemented. Like other
+              unrecognized PRAGMAs they return success and do nothing, so the database is written
+              unencrypted. The C API shim has no <code>sqlite3_key</code> either.
             </p>
           </>
         }
         howToUse={
           <>
-            <p>Follow the stepper through the 6 phases.</p>
+            <p>Follow the stepper through the 7 stages.</p>
             <div>
-              First, an <FrankenJargon term="argon2id">Argon2id KEK</FrankenJargon> wraps the
-              internal <FrankenJargon term="dek-kek">DEK</FrankenJargon>.
+              A random 256-bit <FrankenJargon term="dek-kek">DEK</FrankenJargon> encrypts pages. A
+              key-encryption key derived with{" "}
+              <FrankenJargon term="argon2id">Argon2id</FrankenJargon> wraps the DEK.
             </div>
             <p>
-              Then, the engine computes a 24-byte Nonce (Number Used Once). The page number itself
-              is cryptographically bound into the algorithm as Authenticated Data.
+              Each page write draws a fresh 24-byte random nonce. The page number and database ID
+              are bound as associated data.
             </p>
             <div>
-              Finally, the <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> algorithm
-              scrambles the bytes into pure noise, appending a 16-byte MAC (Message Authentication
-              Code) tag to the end.
+              <FrankenJargon term="aead">XChaCha20-Poly1305</FrankenJargon> then encrypts the page
+              body, and the nonce and 16-byte authentication tag go into the page&apos;s reserved
+              bytes.
             </div>
           </>
         }
         whyItMatters={
           <>
             <p>
-              In standard SQLite, encryption requires buying a proprietary, closed-source add-on
-              (SEE). In FrankenSQLite, it is deeply integrated into the open-source storage layer at
-              the <FrankenJargon term="btree">B-tree</FrankenJargon> page level.
+              SQLite&apos;s own encryption option, the SQLite Encryption Extension (SEE), is a
+              paid, closed-source add-on. The goal here is page-level encryption in the open-source
+              engine.
             </p>
             <div>
-              Because it uses an <FrankenJargon term="aead">AEAD</FrankenJargon> cipher with a{" "}
-              <FrankenJargon term="dek-kek">DEK/KEK</FrankenJargon> hierarchy derived via{" "}
-              <FrankenJargon term="argon2id">Argon2id</FrankenJargon>, it guarantees both
-              confidentiality and integrity. If a malicious actor flips a single bit on disk, or
-              tries to copy an encrypted page from one part of the file to another, the Poly1305
-              authentication fails instantly, rejecting the read before decryption even begins.
+              The <FrankenJargon term="dek-kek">DEK/KEK</FrankenJargon> split makes changing the
+              passphrase cheap: rekey re-wraps a 32-byte key instead of rewriting every page.
+              Random 24-byte nonces avoid a global counter, which keeps nonce reuse unlikely across
+              crashes and VM snapshot restores. The{" "}
+              <FrankenJargon term="aead">AEAD</FrankenJargon> tag means tampering or a misplaced
+              page is detected on read. None of this protects data until the PRAGMAs are wired in.
             </div>
           </>
         }

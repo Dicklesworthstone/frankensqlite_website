@@ -16,42 +16,64 @@ const ROWS = 4;
 const CELL_SIZE = 28;
 const CELL_GAP = 3;
 
-/** Indices of cells that differ between v1 → v2 (3 changed bytes) */
+/* Sizes follow the sparse-XOR wire format in crates/fsqlite-mvcc/src/xor_delta.rs:
+   an 8-byte header, then one run per stretch of changed bytes (u16 offset + u16
+   length + the XORed bytes). A delta is kept only if it saves at least 25% of a
+   full page image (DEFAULT_DELTA_THRESHOLD_PCT); otherwise the full image is stored.
+   In this demo each cell is a 64-byte chunk, and a highlighted chunk is assumed to
+   be fully rewritten. The changes themselves are illustrative. */
+const PAGE_BYTES = 4096;
+const CHUNK_BYTES = PAGE_BYTES / (COLS * ROWS); // 64
+const DELTA_HEADER_BYTES = 8;
+const DELTA_RUN_HEADER_BYTES = 4;
+const MIN_SAVING_PCT = 25;
+const MAX_DELTA_BYTES = (PAGE_BYTES * (100 - MIN_SAVING_PCT)) / 100; // 3072
+
+/** Encoded sparse-XOR size if every chunk in `changed` is fully rewritten. */
+function encodedDeltaBytes(changed: Set<number>): number {
+  let runs = 0;
+  for (let i = 0; i < COLS * ROWS; i++) {
+    if (changed.has(i) && !changed.has(i - 1)) runs++;
+  }
+  return DELTA_HEADER_BYTES + runs * DELTA_RUN_HEADER_BYTES + changed.size * CHUNK_BYTES;
+}
+
+/** Chunks that differ between v1 and v2: a small update touching 3 chunks. */
 const V2_CHANGED: Set<number> = new Set([5, 22, 51]);
 
-/** Indices of cells that differ between v2 → v3 (40% changed = above threshold) */
+/** Chunks that differ between v2 and v3: a rewrite of most of the page (every chunk but each 5th). */
 const V3_CHANGED: Set<number> = new Set(
-  Array.from({ length: 26 }, (_, i) => i * 2 + 1), // every other cell => 26 cells ≈ 40%
+  Array.from({ length: COLS * ROWS }, (_, i) => i).filter((i) => i % 5 !== 0),
 );
+
+const V2_DELTA_BYTES = encodedDeltaBytes(V2_CHANGED); // 212
+const V3_DELTA_BYTES = encodedDeltaBytes(V3_CHANGED); // 3,324
+const V3_CHANGED_PCT = Math.round((V3_CHANGED.size / (COLS * ROWS)) * 100);
 
 const steps: Step[] = [
   {
-    label: "Page v1 — the original page",
-    description:
-      "A 4096-byte database page represented as a 4×16 byte grid. Each cell represents a 64-byte chunk.",
+    label: "Page v1: the original page",
+    description: `A ${PAGE_BYTES.toLocaleString()}-byte page drawn as a 4×16 grid. Each cell stands for a ${CHUNK_BYTES}-byte chunk.`,
   },
   {
-    label: "Page v2 — 3 bytes changed",
-    description: "A new transaction modifies 3 cells. Changed bytes are highlighted in amber.",
+    label: `Page v2: ${V2_CHANGED.size} chunks changed`,
+    description: `A small update rewrites ${V2_CHANGED.size} chunks (${V2_CHANGED.size * CHUNK_BYTES} bytes). Changed chunks are amber.`,
   },
   {
     label: "XOR delta computed",
-    description:
-      "XOR(v1, v2) produces a sparse delta. Only the 3 changed offsets have non-zero values; everything else is zero.",
+    description: `v1 XOR v2 is zero wherever the pages match. Only the ${V2_CHANGED.size} changed stretches are non-zero, and XOR is its own inverse, so either version can be rebuilt from the other plus the delta.`,
   },
   {
-    label: "Compact delta stored — 93% savings",
-    description:
-      "Instead of storing a full 4096-byte page copy, we store only the 3 non-zero offsets. This saves 93% of version chain storage.",
+    label: "Sparse delta stored",
+    description: `The delta encodes each non-zero stretch as a run: ${DELTA_HEADER_BYTES}-byte header + ${V2_CHANGED.size} × (${DELTA_RUN_HEADER_BYTES}-byte run header + ${CHUNK_BYTES} bytes) = ${V2_DELTA_BYTES} bytes, instead of a ${PAGE_BYTES.toLocaleString()}-byte copy. That figure is for this example only.`,
   },
   {
-    label: "Page v3 — 40% of bytes changed",
-    description: "A large update modifies 26 of 64 cells, above the 25% threshold.",
+    label: `Page v3: ${V3_CHANGED_PCT}% of chunks changed`,
+    description: `A large update rewrites ${V3_CHANGED.size} of 64 chunks. The delta would be ${V3_DELTA_BYTES.toLocaleString()} bytes.`,
   },
   {
-    label: "Full page stored instead",
-    description:
-      "When the delta exceeds 25% of the page size, a full page copy is cheaper than a sparse delta. FrankenSQLite stores v3 as a complete snapshot.",
+    label: "Full image stored instead",
+    description: `A delta is kept only if it saves at least ${MIN_SAVING_PCT}% (at most ${MAX_DELTA_BYTES.toLocaleString()} bytes for a 4 KiB page). ${V3_DELTA_BYTES.toLocaleString()} bytes does not, so v3 is stored as a full page image.`,
   },
 ];
 
@@ -184,15 +206,15 @@ export default function XorDeltaChain() {
   const showDelta = currentStep >= 2 && currentStep <= 3;
   const showV3 = currentStep >= 4;
 
-  // Size comparison data
-  const fullSize = 4096;
-  const deltaSize = V2_CHANGED.size * 64;
-  const savings = Math.round((1 - deltaSize / fullSize) * 100);
+  // Size comparison data (this example only)
+  const fullSize = PAGE_BYTES;
+  const deltaSize = V2_DELTA_BYTES;
 
   return (
     <VizContainer
       title="XOR Delta Version Chain"
-      description="Sparse byte-level diffs compress MVCC version chains by up to 93%."
+      status="dormant"
+      description="A tested library for storing old page versions as sparse XOR deltas instead of full copies. The live MVCC version store still keeps full page images; this compression is not wired in yet."
     >
       <div className="p-4 md:p-6">
         <div className="relative w-full overflow-hidden group">
@@ -284,7 +306,7 @@ export default function XorDeltaChain() {
                     fontSize={11}
                     className="fill-slate-400 font-bold"
                   >
-                    XOR Delta: {V2_CHANGED.size} non-zero offsets
+                    XOR delta: {V2_CHANGED.size} non-zero runs
                   </text>
 
                   {/* Compact delta blocks */}
@@ -319,7 +341,7 @@ export default function XorDeltaChain() {
                   transition={{ duration: dur }}
                 >
                   <text x={leftX} y={H - 40} fontSize={10} className="fill-slate-500 font-bold">
-                    Full page: {fullSize}B
+                    Full page: {fullSize.toLocaleString()} B
                   </text>
                   <rect
                     x={leftX + 100}
@@ -347,7 +369,7 @@ export default function XorDeltaChain() {
                     fontSize={11}
                     className="fill-amber-400 font-black"
                   >
-                    Delta: {deltaSize}B ({savings}% saved)
+                    Delta: {deltaSize} B (this example)
                   </text>
                 </motion.g>
               )}
@@ -360,9 +382,9 @@ export default function XorDeltaChain() {
                   transition={{ duration: dur }}
                 >
                   <rect
-                    x={W / 2 - 140}
+                    x={W / 2 - 190}
                     y={gridY + ROWS * (CELL_SIZE + CELL_GAP) + 25}
-                    width={280}
+                    width={380}
                     height={36}
                     rx={8}
                     fill="rgba(239,68,68,0.15)"
@@ -376,7 +398,8 @@ export default function XorDeltaChain() {
                     fontSize={11}
                     className="fill-red-300 font-bold"
                   >
-                    Delta &gt; 25% → store full page copy
+                    Delta {V3_DELTA_BYTES.toLocaleString()} B saves &lt; {MIN_SAVING_PCT}% → store
+                    full image
                   </text>
                 </motion.g>
               )}
@@ -398,44 +421,48 @@ export default function XorDeltaChain() {
         whatItIs={
           <>
             <div>
-              You are looking at how FrankenSQLite physically stores multiple versions of the same{" "}
-              <FrankenJargon term="btree">B-tree page</FrankenJargon> to enable{" "}
-              <FrankenJargon term="mvcc">MVCC</FrankenJargon>.
+              A way to store several committed versions of the same{" "}
+              <FrankenJargon term="btree">B-tree page</FrankenJargon> without keeping a full copy of
+              each. Adjacent versions are XORed, and only the non-zero stretches are stored as a{" "}
+              <FrankenJargon term="xor-delta">sparse XOR delta</FrankenJargon>.
             </div>
             <div>
-              Storing full 4KB copies for every single transaction would bloat the database
-              instantly. Instead, the engine stores a chain of{" "}
-              <FrankenJargon term="xor-delta">XOR Deltas</FrankenJargon>.
+              This lives in <code>fsqlite-mvcc</code> as a tested library, plus an opt-in archive
+              format for a page&apos;s history. The live{" "}
+              <FrankenJargon term="mvcc">MVCC</FrankenJargon> version store does not use it: it
+              keeps full page images and drops old ones once no snapshot needs them.
             </div>
           </>
         }
         howToUse={
           <>
             <p>
-              Watch the stepper animation. When V2 changes just a few bytes of V1, the engine
-              computes an XOR difference. Notice the amber blocks at the bottom: this represents the
-              highly compressed delta being saved to disk.
+              Step through the animation. When v2 rewrites a few chunks of v1, the XOR is mostly
+              zeros, and the amber blocks at the bottom are the runs that would be stored.
             </p>
             <p>
-              As long as the delta is small, it achieves up to 93% compression. However, on Step 5,
-              you see what happens if someone deletes half the rows on a page: if the delta exceeds
-              25% of the page size, the engine falls back to storing a full 4KB copy to prevent the
-              chain from becoming too expensive to reconstruct.
+              At the last stage, v3 rewrites most of the page. The delta would save less than 25%
+              of a full image, so a full image is stored instead. The 25% minimum saving is the
+              library&apos;s default. In the archive format, the newest version is kept whole, older
+              versions are stored as reverse deltas, and a full image appears at least every 32
+              versions so rebuilding any version takes at most 31 deltas.
             </p>
           </>
         }
         whyItMatters={
           <>
             <div>
-              <FrankenJargon term="mvcc">MVCC</FrankenJargon> databases like PostgreSQL suffer from
-              vacuuming bloat because they leave dead rows scattered throughout the main{" "}
-              <FrankenJargon term="btree">B-tree</FrankenJargon> tables.
+              Page-level <FrankenJargon term="mvcc">MVCC</FrankenJargon> keeps a whole page copy for
+              each committed version until garbage collection can drop it. When an update changes a
+              few bytes, most of that copy repeats the previous one, and long-running readers keep
+              old versions alive longer.
             </div>
             <div>
-              By storing highly compressed{" "}
-              <FrankenJargon term="xor-delta">XOR deltas</FrankenJargon> in a dedicated log rather
-              than the main table, FrankenSQLite keeps the hot database pages clean while
-              maintaining thousands of historical snapshots with minimal storage overhead.
+              Delta encoding would shrink that retained history when changes are small. It is
+              compression of two known committed images, not a way to merge concurrent writes: raw
+              XOR merging of SQLite pages is explicitly ruled out, because when a cell moves, two
+              edits to different bytes can still lose an update. How much space it would save on
+              real workloads has not been measured.
             </div>
           </>
         }

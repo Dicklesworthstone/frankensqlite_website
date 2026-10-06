@@ -11,40 +11,44 @@ import { VizExposition } from "./viz-exposition";
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const K = 8; // source symbols
-const R = 4; // repair symbols
+const K = 8; // source symbols (illustrative: 8 x 512 bytes)
+// The design's default repair budget (crates/fsqlite-core/src/repair_symbols.rs):
+// R = max(2, ceil(K * 20%)), raised to 3 for objects of 8 symbols or fewer.
+const R = 3;
 const TOTAL = K + R;
 const CORRUPT_IDX = 3; // which source symbol gets corrupted
 
 const steps: Step[] = [
   {
-    label: "Raw database page",
-    description: "A 4096-byte database page, the fundamental unit of storage in FrankenSQLite.",
+    label: "An ECS object",
+    description:
+      "In the native-mode design every durable object (commit capsule, page snapshot, schema snapshot) is an ECS object. This example uses a 4,096-byte payload.",
   },
   {
     label: "Partition into K source symbols",
-    description: `The page is split into ${K} equal-sized source symbols, each 512 bytes.`,
+    description: `The payload is split into ${K} source symbols of equal size. The symbol size is recorded in the object's RaptorQ header (OTI); 512 bytes is just this example.`,
   },
   {
-    label: "BLAKE3 hash → ObjectId",
+    label: "BLAKE3 → 128-bit ObjectId",
     description:
-      "The full page is hashed with BLAKE3 to produce a 256-bit content-addressed ObjectId.",
+      'The payload is hashed with BLAKE3. The ObjectId is BLAKE3 over a domain tag ("fsqlite:ecs:v1"), the canonical header and that payload hash, truncated to 128 bits.',
   },
   {
     label: "RaptorQ encoder → R repair symbols",
-    description: `The encoder generates ${R} repair symbols from the ${K} source symbols. These provide redundancy for corruption recovery.`,
+    description: `The encoder computes ${R} repair symbols from the ${K} source symbols. The design's default budget is 20% overhead with at least 2 extra symbols, and 3 for objects this small.`,
   },
   {
-    label: "Systematic layout: zero-copy reads",
-    description: `The first ${K} symbols are the raw source data. Normal reads require no decoding. Repair symbols sit at the end.`,
+    label: "Systematic layout",
+    description: `The first ${K} symbols are the original bytes, so reading an intact object needs no decoding. Repair symbols follow them.`,
   },
   {
-    label: "Corruption detected!",
-    description: "A checksum mismatch reveals that source symbol #4 has been corrupted by bit rot.",
+    label: "Damage detected",
+    description:
+      "Each symbol is stored in a record with an XXH3 check. Here the check on S3 fails (simulated bit rot).",
   },
   {
-    label: "Repair symbols reconstruct the data",
-    description: `Any ${K} of the ${TOTAL} total symbols are sufficient to reconstruct the full page. The corrupted symbol is rebuilt from the remaining intact data.`,
+    label: "Decode rebuilds the data",
+    description: `RaptorQ needs about ${K} intact symbols, sometimes one or two more. ${TOTAL - 1} of ${TOTAL} survive here, so the decoder rebuilds S3.`,
   },
 ];
 
@@ -115,7 +119,8 @@ export default function EcsFormat() {
   return (
     <VizContainer
       title="ECS Format Explorer"
-      description="Erasure-Coded Streams: content-addressed, RaptorQ-protected storage objects with zero-copy reads."
+      status="design"
+      description="How the native-mode design stores an object: named by a BLAKE3-derived ObjectId and encoded as RaptorQ source and repair symbols. Design plus partial implementation; not used by the default runtime."
     >
       <div className="p-4 md:p-6">
         <div className="relative w-full overflow-hidden group">
@@ -160,7 +165,7 @@ export default function EcsFormat() {
                       className="fill-white text-sm font-bold"
                       fontSize={14}
                     >
-                      Database Page
+                      ECS Object Payload
                     </text>
                     <text
                       x={W / 2}
@@ -169,7 +174,7 @@ export default function EcsFormat() {
                       className="fill-slate-500 text-xs"
                       fontSize={11}
                     >
-                      4096 bytes
+                      4,096 bytes (example)
                     </text>
                   </motion.g>
                 )}
@@ -304,9 +309,9 @@ export default function EcsFormat() {
                   transition={{ duration: dur }}
                 >
                   <rect
-                    x={W / 2 - 150}
+                    x={W / 2 - 230}
                     y={gridTop + symH + 30}
-                    width={300}
+                    width={460}
                     height={36}
                     rx={8}
                     fill="rgba(139,92,246,0.15)"
@@ -320,7 +325,7 @@ export default function EcsFormat() {
                     fontSize={10}
                     className="fill-purple-300 font-mono font-bold"
                   >
-                    ObjectId: blake3(&quot;7f3a...c8e1&quot;)
+                    ObjectId = Trunc128(BLAKE3(&quot;fsqlite:ecs:v1&quot; ‖ header ‖ payload_hash))
                   </text>
                 </motion.g>
               )}
@@ -358,13 +363,13 @@ export default function EcsFormat() {
                     fontSize={9}
                     className="fill-teal-300 font-bold"
                   >
-                    Zero-copy readable data
+                    Source = original bytes
                   </text>
-                  {/* Repair portion */}
+                  {/* Repair portion (width proportional to R/K) */}
                   <rect
                     x={gridLeft + 252}
                     y={gridTop + symH + 78}
-                    width={100}
+                    width={(200 * R) / K}
                     height={18}
                     rx={4}
                     fill="rgba(251,191,36,0.2)"
@@ -372,13 +377,13 @@ export default function EcsFormat() {
                     strokeWidth={1}
                   />
                   <text
-                    x={gridLeft + 302}
+                    x={gridLeft + 252 + (100 * R) / K}
                     y={gridTop + symH + 91}
                     textAnchor="middle"
                     fontSize={9}
                     className="fill-amber-300 font-bold"
                   >
-                    Parity
+                    Repair
                   </text>
                 </motion.g>
               )}
@@ -400,49 +405,52 @@ export default function EcsFormat() {
         whatItIs={
           <>
             <p>
-              You are looking at how FrankenSQLite partitions a raw 4 KB{" "}
-              <FrankenJargon term="btree">B-tree page</FrankenJargon> into the{" "}
-              <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon> format. The page is
-              divided into K source symbols (teal) and then extended with additional{" "}
+              How an object is laid out in the{" "}
+              <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon>, the storage format in
+              FrankenSQLite&apos;s native-mode design. The payload is divided into K source symbols
+              (teal) and extended with{" "}
               <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> (amber) computed by
               the <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> encoder over{" "}
               <FrankenJargon term="gf256">GF(256)</FrankenJargon> arithmetic.
             </p>
             <p>
-              The <FrankenJargon term="systematic-layout">systematic layout</FrankenJargon> keeps
-              source symbols first, so normal reads access the original data directly without
-              decoding. Repair symbols activate only when corruption is detected.
+              Each symbol is stored as a <code>SymbolRecord</code>. Its fields include the magic
+              bytes <code>FSEC</code>, the 16-byte ObjectId, the RaptorQ header (OTI), the
+              symbol&apos;s index (ESI), the symbol bytes, an XXH3 check and an optional
+              authentication tag. These record types exist in the code today; the native mode that
+              would use them for all storage does not.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Step through the 7 stages. Watch the raw page split into source symbols, see the
-              BLAKE3 content-addressed ObjectId computed for the full page, then observe the{" "}
-              <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> encoder generate repair symbols.
-              At step 5, a source symbol turns red (simulated corruption). At step 6, the engine
-              uses the surviving source and repair symbols to reconstruct the corrupted data, which
-              flashes green on recovery.
+              Step through the 7 stages. The payload splits into source symbols, gets its{" "}
+              <FrankenJargon term="content-addressed">content-addressed</FrankenJargon> ObjectId,
+              and the encoder adds repair symbols. At stage 6 a source symbol fails its check
+              (simulated). At stage 7 the decoder rebuilds it from the surviving source and repair
+              symbols.
             </p>
             <p>
-              Notice that the source symbols come first in the layout. During normal reads, the
-              engine accesses these directly. The repair symbols sit in the trailing positions,
-              inert until needed.
+              The source symbols come first and hold the original bytes. An intact object is read
+              from them directly; the repair symbols are only needed after damage.
             </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              This is the physical format that gives FrankenSQLite its self-healing property.
-              Because <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> is a rateless fountain
-              code, the engine can generate as many repair symbols as needed per block, trading disk
-              overhead for durability. The{" "}
-              <FrankenJargon term="systematic-layout">systematic layout</FrankenJargon> means you
-              pay zero CPU cost for reads under normal conditions; decoding only activates on the
-              rare occasion that corruption is detected. This gives you enterprise-grade data
-              protection without sacrificing read performance.
+              <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> is a fountain code, so the
+              encoder can produce more repair symbols for the same object later. Repair symbols are
+              deterministic: the same object and count always give the same symbols. That lets the
+              design raise redundancy by appending symbols instead of rewriting data.
+            </p>
+            <p>
+              Because the code is{" "}
+              <FrankenJargon term="systematic-layout">systematic</FrankenJargon>, the cost of the
+              redundancy is mostly disk space and encode time, not decode work on every read. How
+              much it costs in practice has not been measured for a shipped native mode, because
+              there is not one yet.
             </p>
           </>
         }

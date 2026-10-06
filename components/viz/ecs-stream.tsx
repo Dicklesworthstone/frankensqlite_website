@@ -28,7 +28,7 @@ export default function EcsStream() {
     const txn = txnCounter;
     setTxnCounter((prev) => prev + 1);
 
-    // 2 data blocks, 1 parity block per txn
+    // 2 data blocks, 1 repair block per commit (an illustrative ratio, not the design's budget)
     const newBlocks: Block[] = [
       { id: `d1-${txn}`, type: "data", label: `P${Math.floor(Math.random() * 20)}`, txn },
       { id: `d2-${txn}`, type: "data", label: `P${Math.floor(Math.random() * 20)}`, txn },
@@ -69,14 +69,15 @@ export default function EcsStream() {
   return (
     <VizContainer
       title="Erasure-Coded Stream (ECS)"
-      description="The ECS format is an append-only log where raw database pages are continuously interleaved with RaptorQ repair symbols. It provides native time-travel and heals from bit rot on the fly."
+      status="design"
+      description="In FrankenSQLite's native-mode design, durable state is an append-only stream of immutable objects, each stored as RaptorQ source and repair symbols. Parts of it are implemented, but native mode is not something you can switch on today. The default runtime uses standard SQLite files."
       minHeight={350}
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 gap-6 justify-between">
         {/* Controls */}
         <div className="flex justify-between items-center">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-500">
-            Live Disk Stream
+            Simulated Stream (Design)
           </div>
           <button
             onClick={() => setIsSimulating(!isSimulating)}
@@ -140,7 +141,7 @@ export default function EcsStream() {
                       {block.label}
                     </span>
                     <span className="text-[9px] text-slate-500 font-mono mt-1">
-                      Txn {block.txn}
+                      Commit {block.txn}
                     </span>
 
                     {isCorrupted && <div className="absolute -top-2 -right-2 text-xs">🔥</div>}
@@ -162,9 +163,9 @@ export default function EcsStream() {
           <div className="flex-1 rounded-lg border border-teal-500/20 bg-teal-500/5 p-3 flex items-start gap-3">
             <ShieldCheck className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
             <div className="text-xs text-slate-300 leading-relaxed">
-              Because of its <FrankenJargon term="systematic-layout" />, normal reads fetch the{" "}
-              <strong className="text-teal-400">Data Pages</strong> directly from disk into RAM with
-              zero decoding overhead.
+              RaptorQ is <FrankenJargon term="systematic-layout">systematic</FrankenJargon>: the
+              source symbols are the original bytes, so reading an intact{" "}
+              <strong className="text-teal-400">data block</strong> needs no decoding.
             </div>
           </div>
           <div className="flex-1 rounded-lg border border-purple-500/20 bg-purple-500/5 p-3 flex items-start gap-3">
@@ -172,9 +173,9 @@ export default function EcsStream() {
               R
             </div>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Click a Data Page to simulate corruption. The{" "}
-              <strong className="text-purple-400">Repair Symbols</strong> are only mathematically
-              engaged when the engine detects a failed checksum.
+              Click a data block to simulate damage. In the design, each stored symbol carries an
+              XXH3 check, and the <strong className="text-purple-400">repair symbols</strong> are
+              only read when a check fails.
             </p>
           </div>
         </div>
@@ -184,51 +185,50 @@ export default function EcsStream() {
         whatItIs={
           <>
             <div>
-              You are watching the <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon>,
-              FrankenSQLite&apos;s native storage format. Instead of overwriting old pages in a main
-              database file, it continuously appends new{" "}
-              <FrankenJargon term="cow">versions of pages</FrankenJargon> to the end of a log.
+              A simulation of the <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon>,
+              the storage substrate in FrankenSQLite&apos;s native-mode design. Instead of
+              overwriting pages in a database file, native mode would append immutable commit
+              objects (<code>CommitCapsule</code>s holding page deltas and intent logs) and make
+              each one durable with a small <code>CommitMarker</code> record.
             </div>
             <div>
-              Notice the purple blocks. Every time a few green data pages are written, the engine
-              computes and appends a mathematically derived{" "}
-              <FrankenJargon term="repair-symbol">repair symbol</FrankenJargon> using{" "}
-              <FrankenJargon term="raptorq">RaptorQ fountain codes</FrankenJargon>.
+              The purple blocks are{" "}
+              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon>. Each object is
+              encoded with <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> into source
+              symbols plus repair symbols. The one-repair-per-two-pages ratio here is illustrative;
+              the design&apos;s default budget is 20% overhead with a floor of 2 extra symbols.
             </div>
           </>
         }
         howToUse={
           <>
             <p>
-              Click <strong>Start DB Writers</strong> to begin the stream. Then, click directly on
-              any of the green Data Pages as they fly by to simulate a disk failure or a bit-rot
-              corruption event (represented by a fire icon).
+              Click <strong>Start DB Writers</strong> to begin the stream, then click a green data
+              block to simulate a bad sector or a flipped bit (shown with a fire icon).
             </p>
             <div>
-              Notice that the stream briefly pauses as the engine detects the invalid checksum. It
-              instantly grabs the nearest purple{" "}
-              <FrankenJargon term="repair-symbol">Repair Symbols</FrankenJargon>, runs the{" "}
-              <FrankenJargon term="gf256">GF(256) algebra</FrankenJargon>, perfectly reconstructs
-              the damaged page, and resumes operation.
+              The simulation pauses while it rebuilds the block. In the design, a reader that hits
+              a failed check gathers enough intact symbols for that object, source or repair, and
+              decodes it with <FrankenJargon term="gf256">GF(256)</FrankenJargon> arithmetic. This
+              repair path is not part of the default runtime.
             </div>
           </>
         }
         whyItMatters={
           <>
             <p>
-              Standard databases have no built-in defense against silent data corruption on disk. If
-              a bit flips on a storage device, standard SQLite will read the corrupted page, return
-              invalid data or abort the transaction with <code>SQLITE_CORRUPT</code>, and require a
-              manual restore from the most recent backup.
+              Stock SQLite has no per-page checksums in the main database file by default. A
+              flipped bit can go unnoticed or surface later as <code>SQLITE_CORRUPT</code>, and the
+              fix is a restore from backup.
             </p>
             <div>
-              FrankenSQLite&apos;s{" "}
-              <FrankenJargon term="systematic-layout">systematic layout</FrankenJargon> provides
-              enterprise-grade durability. Normal reads operate at zero-copy speed with no decoding
-              overhead, but when a checksum mismatch reveals on-disk corruption, the engine
-              reconstructs the damaged page from nearby{" "}
-              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> in milliseconds
-              without interrupting in-flight queries.
+              Erasure coding stores enough redundancy to rebuild lost symbols without keeping a
+              second full copy, and the{" "}
+              <FrankenJargon term="systematic-layout">systematic layout</FrankenJargon> means intact
+              data is read without decoding. FrankenSQLite has the RaptorQ codec and pieces of
+              this format in code. The closest thing that ships is the{" "}
+              <FrankenJargon term="wal-fec">-wal-fec</FrankenJargon> sidecar of repair symbols for
+              WAL commits, which ordinary recovery does not read yet.
             </div>
           </>
         }

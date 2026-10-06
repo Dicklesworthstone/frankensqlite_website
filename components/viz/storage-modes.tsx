@@ -16,31 +16,32 @@ const STEPS: Step[] = [
   {
     label: "File layout",
     description:
-      "Compatibility mode uses a standard B-tree file. Native ECS mode uses an append-only segment chain with inline parity blocks.",
+      "Compatibility mode, the runtime today, uses a standard SQLite database file plus a rollback journal or WAL. The native-mode design keeps an append-only stream of commit objects stored as RaptorQ symbols.",
   },
   {
     label: "INSERT",
     description:
-      "Compatibility: cell inserted in-place in the B-tree page. ECS: new immutable page version appended to the segment chain.",
+      "Compatibility: the changed B-tree page goes through the journal or WAL and ends up written in place in the .db file. Native design: the commit becomes a new immutable CommitCapsule, made durable by a CommitMarker.",
   },
   {
     label: "UPDATE",
     description:
-      "Compatibility: cell overwritten in the existing page. ECS: old version kept, new version appended. History preserved.",
+      "Compatibility: the page is rewritten, and after a checkpoint the file holds only the current version. Native design: earlier capsules stay in the stream until compaction reclaims them.",
   },
   {
     label: "Corruption",
     description:
-      "Compatibility: damaged page has no recovery path. ECS: RaptorQ parity detects and repairs corruption automatically.",
+      "Compatibility: WAL frame checksums detect damage, but nothing repairs it automatically. Native design: each symbol carries an XXH3 check, and RaptorQ repair symbols would rebuild the damaged object.",
   },
   {
     label: "Time-travel query",
     description:
-      "Compatibility: not supported, only the current state exists. ECS: historical versions retrieved directly from the append-only chain.",
+      "Compatibility: FOR SYSTEM_TIME AS OF works on :memory: databases only, from up to 256 snapshots taken at COMMIT. File-backed databases return an explicit error. Native design: history would come from the commit stream.",
   },
   {
-    label: "Trade-offs",
-    description: "Choose based on your needs: maximum compatibility or maximum durability.",
+    label: "Where things stand",
+    description:
+      "Compatibility mode is the default and the only mode you can use today. Native mode is design plus partial implementation, with no stable switch.",
   },
 ];
 
@@ -65,7 +66,7 @@ function getCompatVis(step: number): PanelVis {
           { label: "Page 3", color: "#475569" },
           { label: "Free", color: "#1e293b" },
         ],
-        annotation: "Standard .sqlite3 B-tree file",
+        annotation: "Standard SQLite .db file (plus -wal or -journal)",
       };
     case 1:
       return {
@@ -76,7 +77,7 @@ function getCompatVis(step: number): PanelVis {
           { label: "Page 3", color: "#475569" },
           { label: "Free", color: "#1e293b" },
         ],
-        annotation: "INSERT → cell added to Page 2 in-place",
+        annotation: "INSERT → Page 2 changes (via WAL or journal)",
       };
     case 2:
       return {
@@ -87,7 +88,7 @@ function getCompatVis(step: number): PanelVis {
           { label: "Page 3", color: "#475569" },
           { label: "Free", color: "#1e293b" },
         ],
-        annotation: "UPDATE → cell overwritten, old value lost",
+        annotation: "UPDATE → Page 2 rewritten; only the current version stays in the file",
       };
     case 3:
       return {
@@ -98,7 +99,8 @@ function getCompatVis(step: number): PanelVis {
           { label: "Page 3", color: "#475569" },
           { label: "Free", color: "#1e293b" },
         ],
-        annotation: "Corruption → no recovery path",
+        annotation:
+          "Corruption → WAL checksums or PRAGMA integrity_check may catch it; no automatic repair",
       };
     case 4:
       return {
@@ -109,8 +111,12 @@ function getCompatVis(step: number): PanelVis {
           { label: "Page 3", color: "#475569", status: "dim" },
           { label: "Free", color: "#1e293b" },
         ],
-        annotation: "Time-travel: not supported",
-        badge: { text: "NOT AVAILABLE", color: "text-red-400 border-red-500/30 bg-red-500/5" },
+        annotation:
+          "Time travel: :memory: databases only (ring of up to 256 snapshots); file-backed queries return an error",
+        badge: {
+          text: ":MEMORY: ONLY",
+          color: "text-amber-400 border-amber-500/30 bg-amber-500/5",
+        },
       };
     case 5:
       return {
@@ -121,7 +127,7 @@ function getCompatVis(step: number): PanelVis {
           { label: "Page 3", color: "#475569" },
           { label: "Free", color: "#1e293b" },
         ],
-        annotation: "Max compatibility, standard tooling, smaller files",
+        annotation: "Live default: standard files that stock sqlite3 can read",
       };
     default:
       return { blocks: [] };
@@ -133,72 +139,72 @@ function getEcsVis(step: number): PanelVis {
     case 0:
       return {
         blocks: [
-          { label: "Seg 1", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
-          { label: "Seg 2", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
+          { label: "Capsule 1", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
+          { label: "Capsule 2", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
           { label: "→", color: "#115e59" },
         ],
-        annotation: "Append-only segment chain + RaptorQ parity",
+        annotation: "Design: append-only commit capsules stored as RaptorQ symbols",
       };
     case 1:
       return {
         blocks: [
-          { label: "Seg 1", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
-          { label: "Seg 2", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
-          { label: "v2 (new)", color: "#38bdf8", status: "ok" },
+          { label: "Capsule 1", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
+          { label: "Capsule 2", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
+          { label: "Capsule 3 (new)", color: "#38bdf8", status: "ok" },
         ],
-        annotation: "INSERT → new immutable version appended",
+        annotation: "INSERT → new immutable capsule appended, then a CommitMarker",
       };
     case 2:
       return {
         blocks: [
-          { label: "v1 (old)", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
-          { label: "v2", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
-          { label: "v3 (new)", color: "#f59e0b", status: "ok" },
+          { label: "Capsule 2", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
+          { label: "Capsule 3", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
+          { label: "Capsule 4 (new)", color: "#f59e0b", status: "ok" },
         ],
-        annotation: "UPDATE → old version kept, new appended",
+        annotation: "UPDATE → earlier capsules kept, new one appended",
       };
     case 3:
       return {
         blocks: [
-          { label: "Seg 1", color: "#ef4444", status: "error" },
-          { label: "Parity", color: "#0d9488" },
-          { label: "Seg 2", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
-          { label: "Repaired", color: "#22c55e", status: "repair" },
+          { label: "Capsule 2", color: "#ef4444", status: "error" },
+          { label: "Repair", color: "#0d9488" },
+          { label: "Capsule 3", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
+          { label: "Rebuilt", color: "#22c55e", status: "repair" },
         ],
-        annotation: "Corruption → RaptorQ parity repairs automatically",
+        annotation: "Corruption → design: repair symbols rebuild the damaged object",
       };
     case 4:
       return {
         blocks: [
-          { label: "v1", color: "#14b8a6", status: "ok" },
-          { label: "v2", color: "#14b8a6", status: "ok" },
-          { label: "v3", color: "#38bdf8", status: "ok" },
-          { label: "Parity", color: "#0d9488" },
+          { label: "Commit 2", color: "#14b8a6", status: "ok" },
+          { label: "Commit 3", color: "#14b8a6", status: "ok" },
+          { label: "Commit 4", color: "#38bdf8", status: "ok" },
+          { label: "Repair", color: "#0d9488" },
           { label: "→", color: "#115e59" },
         ],
-        annotation: "Time-travel: any version instantly retrievable",
+        annotation: "Time travel → design: read an earlier commit from the stream",
         badge: {
-          text: "SUPPORTED",
-          color: "text-emerald-400 border-emerald-500/30 bg-emerald-500/5",
+          text: "DESIGN",
+          color: "text-slate-300 border-slate-400/30 bg-slate-400/5",
         },
       };
     case 5:
       return {
         blocks: [
-          { label: "Seg 1", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
-          { label: "Seg 2", color: "#14b8a6" },
-          { label: "Parity", color: "#0d9488" },
+          { label: "Capsule 1", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
+          { label: "Capsule 2", color: "#14b8a6" },
+          { label: "Repair", color: "#0d9488" },
           { label: "→", color: "#115e59" },
         ],
-        annotation: "Self-healing, time-travel, append-only safety, ~20% more disk",
+        annotation: "Design plus partial implementation; no stable switch to turn it on",
       };
     default:
       return { blocks: [] };
@@ -337,47 +343,53 @@ function TradeoffCards({
       <div className="rounded-lg border border-slate-500/20 bg-slate-500/5 p-4">
         <h4 className="text-xs font-black text-white mb-2 flex items-center gap-2">
           <Database className="h-3.5 w-3.5 text-slate-400" />
-          Compatibility Mode
+          Compatibility Mode (live today)
         </h4>
         <ul className="space-y-1.5 text-[11px] text-slate-400">
           <li className="flex items-center gap-2">
-            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Drop-in .sqlite3
-            replacement
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Opens standard SQLite
+            files (UTF-8 and UTF-16)
           </li>
           <li className="flex items-center gap-2">
-            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Works with existing tooling
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Stock sqlite3 can read the
+            files it writes
           </li>
           <li className="flex items-center gap-2">
-            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Smaller file size
+            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> The default runtime
           </li>
           <li className="flex items-center gap-2">
-            <X className="h-3 w-3 text-red-400 flex-shrink-0" /> No self-healing
+            <Clock className="h-3 w-3 text-amber-400 flex-shrink-0" /> Time travel on :memory:
+            only
           </li>
           <li className="flex items-center gap-2">
-            <X className="h-3 w-3 text-red-400 flex-shrink-0" /> No time-travel
+            <X className="h-3 w-3 text-red-400 flex-shrink-0" /> No automatic corruption repair
           </li>
         </ul>
       </div>
       <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 p-4">
         <h4 className="text-xs font-black text-white mb-2 flex items-center gap-2">
           <Layers className="h-3.5 w-3.5 text-teal-400" />
-          Native ECS Mode
+          Native ECS Mode (design)
         </h4>
         <ul className="space-y-1.5 text-[11px] text-slate-400">
           <li className="flex items-center gap-2">
-            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> RaptorQ self-healing
+            <Clock className="h-3 w-3 text-slate-400 flex-shrink-0" /> Commit stream as the source
+            of truth
           </li>
           <li className="flex items-center gap-2">
-            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Time-travel queries
+            <Clock className="h-3 w-3 text-slate-400 flex-shrink-0" /> RaptorQ repair symbols for
+            every object
           </li>
           <li className="flex items-center gap-2">
-            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Append-only safety
+            <Clock className="h-3 w-3 text-slate-400 flex-shrink-0" /> Content-addressed objects
+            (BLAKE3 ObjectIds)
           </li>
           <li className="flex items-center gap-2">
-            <Check className="h-3 w-3 text-emerald-400 flex-shrink-0" /> Content-addressed pages
+            <Clock className="h-3 w-3 text-slate-400 flex-shrink-0" /> History for file-backed
+            databases
           </li>
           <li className="flex items-center gap-2">
-            <Clock className="h-3 w-3 text-amber-400 flex-shrink-0" /> ~20% more disk usage
+            <X className="h-3 w-3 text-red-400 flex-shrink-0" /> No stable switch to enable it yet
           </li>
         </ul>
       </div>
@@ -400,14 +412,15 @@ export default function StorageModes() {
   return (
     <VizContainer
       title="Storage Mode Comparator"
-      description="Compatibility mode for drop-in migration. Native ECS mode when durability matters more than disk space."
+      status="design"
+      description="Compatibility mode is what runs today: standard SQLite files with a rollback journal or WAL. Native ECS mode, shown on the right, is a design with partial implementation and no stable switch. The badge refers to native mode."
       minHeight={440}
     >
       <div className="p-4 md:p-6 space-y-4">
         {/* Side-by-side panels */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <ModePanel
-            title="Compatibility (.sqlite3)"
+            title="Compatibility (.db), live"
             icon={<Database className="h-4 w-4 text-slate-400" />}
             color="#64748b"
             vis={compatVis}
@@ -415,7 +428,7 @@ export default function StorageModes() {
             prefersReducedMotion={prefersReducedMotion}
           />
           <ModePanel
-            title="Native ECS"
+            title="Native ECS, design"
             icon={<Layers className="h-4 w-4 text-teal-400" />}
             color="#14b8a6"
             vis={ecsVis}
@@ -440,44 +453,51 @@ export default function StorageModes() {
         whatItIs={
           <>
             <p>
-              You are comparing FrankenSQLite&apos;s two storage modes side by side.{" "}
-              <strong>Compatibility mode</strong> (left) reads and writes standard{" "}
-              <code>.sqlite3</code> files, maintaining byte-level compatibility with C SQLite and
-              every existing SQLite tool.{" "}
+              Two storage modes side by side. <strong>Compatibility mode</strong> (left) is the
+              runtime you get today. It reads and writes standard SQLite database files with a
+              rollback journal or WAL, and stock SQLite can open the files it writes.
+            </p>
+            <p>
               <strong>
                 Native <FrankenJargon term="ecs">ECS</FrankenJargon> mode
               </strong>{" "}
-              (right) uses an append-only{" "}
-              <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon> format with built-in{" "}
-              <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> self-healing.
+              (right) is a design with partial implementation. Its durable state would be an
+              append-only <FrankenJargon term="ecs">Erasure-Coded Stream</FrankenJargon> of commit
+              objects protected by <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> repair
+              symbols. Pieces exist in the code, but <code>PRAGMA fsqlite.mode</code> is not a
+              stable switch.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Step through the 6 stages to see how the same write operation flows through each mode.
-              In Compatibility mode, observe the traditional page-update path with journaling. In{" "}
-              <FrankenJargon term="ecs">ECS</FrankenJargon> mode, observe the append-only path where
-              new <FrankenJargon term="cow">page versions</FrankenJargon> and{" "}
-              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> are written
-              sequentially. Notice where the two modes diverge: in-place update vs. append, no
-              repair symbols vs. full <FrankenJargon term="raptorq">RaptorQ</FrankenJargon>{" "}
-              coverage.
+              Step through the 6 stages to follow the same operations through each mode. On the
+              left, pages are updated in place through the journal or WAL. On the right, the design
+              appends new commit objects and their{" "}
+              <FrankenJargon term="repair-symbol">repair symbols</FrankenJargon> instead of
+              overwriting anything.
+            </p>
+            <p>
+              At the time-travel stage, note that compatibility mode does support{" "}
+              <FrankenJargon term="time-travel">time-travel queries</FrankenJargon>, but only on{" "}
+              <code>:memory:</code> databases.
             </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              Compatibility mode lets you adopt FrankenSQLite with zero migration effort: your
-              existing databases, backup tools, and SQLite utilities continue to work unchanged.
-              When durability requirements exceed what the filesystem provides, switching to native{" "}
-              <FrankenJargon term="ecs">ECS</FrankenJargon> mode adds{" "}
-              <FrankenJargon term="raptorq">RaptorQ</FrankenJargon> self-healing,{" "}
-              <FrankenJargon term="content-addressed">content-addressed</FrankenJargon> page
-              versions, and append-only crash safety at the cost of additional disk space. You
-              choose the trade-off per database.
+              Compatibility mode is why you can try FrankenSQLite on existing SQLite databases
+              (UTF-8 or UTF-16) without converting them, and why stock tools can still read the
+              result.
+            </p>
+            <p>
+              The native design aims at things a mutable file cannot easily give you: built-in
+              repair data, <FrankenJargon term="content-addressed">content-addressed</FrankenJargon>{" "}
+              objects, and history for file-backed databases. Those are goals, not features you
+              can turn on today, and their disk and latency costs have not been measured on a
+              shipped implementation.
             </p>
           </>
         }

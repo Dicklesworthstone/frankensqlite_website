@@ -122,10 +122,33 @@ bun run test:e2e tests/e2e/smoke.spec.ts --grep spec_evolution --project=chromiu
 | Route | Rendering | Purpose |
 |---|---|---|
 | `/` | Client | Main product and architecture narrative |
-| `/architecture` | Server | Layered architecture deep dive |
-| `/getting-started` | Server | Install + quickstart + FAQ |
+| `/architecture` | Client | Crate layers, concurrency internals, and status-labeled deep dives |
+| `/getting-started` | Server | Install, async API quickstart, PRAGMAs, current limits, FAQ |
 | `/showcase` | Server | Screenshot gallery |
 | `/spec_evolution` | Server shell + client viewer | Fullscreen spec evolution lab |
+
+## Keeping the Site in Sync with the Engine
+
+The site describes a specific engine release, and every claim about what the
+engine does should match the engine repository at that release.
+
+- `engineSnapshot` in `lib/site-config.ts` records the release version, date,
+  crate counts and the links the site cites (README status section,
+  concurrency contract, negative-results ledger, spec).
+- Every feature, homepage section, architecture topic and visualization carries
+  a status: `live`, `opt-in`, `partial`, `dormant` (built, not wired),
+  `design`, or `harness` (test tooling). `StatusBadge` and `BUILD_STATUS` in
+  `components/franken-elements.tsx` define the vocabulary; `SectionShell` and
+  `VizContainer` accept a `status` prop.
+- The engine README's "Current Implementation Status", "Limitations" and
+  "Performance Characteristics" sections are the source of truth. The site does
+  not quote performance numbers while the README doesn't.
+- `tests/unit/content.test.ts` guards a few invariants (crate count matches the
+  crate list, examples use the async API, no example relies on unwired PRAGMAs
+  such as `PRAGMA key`).
+
+When the engine moves: update `engineSnapshot`, re-check each status against
+the engine README, and fix any copy that changed.
 
 ## Installation
 

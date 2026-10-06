@@ -926,9 +926,23 @@ function SpecEvolutionViewerInner() {
         echartsRef.current.velocity.setOption(
           {
             ...baseTheme,
+            tooltip: {
+              trigger: "axis",
+              formatter: (params: unknown) => {
+                const point = (Array.isArray(params) ? params[0] : params) as { dataIndex: number };
+                const commit = commits[point?.dataIndex];
+                if (!commit) return "";
+                return [
+                  escapeHtml(dayjs(commit.date).format("MMM D, YYYY HH:mm")),
+                  escapeHtml(commit.subject),
+                  `<b>${commit.impact.toLocaleString()} lines</b>`,
+                ].join("<br/>");
+              },
+            },
             xAxis: {
               type: "category" as const,
               axisLine: { lineStyle: { color: "#27272a" } },
+              axisLabel: { formatter: (value: string) => dayjs(value).format("MMM D HH:mm") },
               splitLine: { show: false },
             },
             yAxis: {
@@ -973,6 +987,7 @@ function SpecEvolutionViewerInner() {
         echartsRef.current.dist.setOption(
           {
             ...baseTheme,
+            tooltip: { trigger: "item", formatter: "{b}: {c} commits ({d}%)" },
             series: [
               {
                 type: "pie",
@@ -1024,7 +1039,7 @@ function SpecEvolutionViewerInner() {
   }, [
     tab,
     metrics.length,
-    commits.length,
+    commits,
     velocityChartData,
     distributionChartData,
     massChartData,
@@ -1647,8 +1662,22 @@ function SpecEvolutionViewerInner() {
               <div
                 className={cn("spec-scroll-pane spec-charts-panel", tab !== "timeline" && "hidden")}
               >
+                <h3 className="spec-chart-title">Lines changed per revision</h3>
+                <p className="spec-chart-note">
+                  Added plus deleted lines, one point per commit. The first point is the
+                  initial draft; the dashed line marks the revision you have selected.
+                </p>
                 <div ref={chartVelocityRef} style={{ height: 250, marginBottom: 30 }} />
+                <h3 className="spec-chart-title">Revisions by category</h3>
+                <p className="spec-chart-note">
+                  Each commit counted once, under its primary classification.
+                </p>
                 <div ref={chartDistRef} style={{ height: 250, marginBottom: 30 }} />
+                <h3 className="spec-chart-title">Lines changed per day, by category</h3>
+                <p className="spec-chart-note">
+                  Most of the spec was written in one long session on Feb 7; the later
+                  bars are the follow-up revisions that track the engine.
+                </p>
                 <div ref={chartMassRef} style={{ height: 350 }} />
               </div>
 

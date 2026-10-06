@@ -71,11 +71,11 @@ const STATUS = {
   learnedIndex: "dormant",
   cracking: "dormant",
   cooling: "dormant",
-  bocpd: "harness",
+  bocpd: "dormant",
   sheaf: "harness",
   dpor: "harness",
-  eprocess: "harness",
-  conformal: "opt-in",
+  eprocess: "partial",
+  conformal: "partial",
 } satisfies Record<string, BuildStatus>;
 
 const inlineCode = "text-teal-300 text-xs";
@@ -323,8 +323,9 @@ export default function ArchitecturePage() {
           admits new pages to a small probationary queue so one-off scan pages leave quickly.
         </Prose>
         <Prose last>
-          An <FrankenJargon term="arc-cache">ARC</FrankenJargon> policy is also implemented and can
-          be selected through the pager&apos;s API (there is no PRAGMA for it). ARC balances a recency list against a frequency list and keeps
+          An <FrankenJargon term="arc-cache">ARC</FrankenJargon> policy is implemented in the pager
+          crate too, but connections always open with S3-FIFO and there is no PRAGMA or option to
+          switch. ARC balances a recency list against a frequency list and keeps
           &ldquo;ghost&rdquo; entries for recently evicted pages to learn which side deserves more
           room. The demo below shows ARC&apos;s four lists at work.
         </Prose>
@@ -521,8 +522,9 @@ export default function ArchitecturePage() {
           <FrankenJargon term="bocpd">Bayesian online change-point detection</FrankenJargon> keeps a
           running estimate of how long the current workload &ldquo;regime&rdquo; has lasted and
           notices when the throughput pattern changes, for example from steady OLTP to a bulk load.
-          In FrankenSQLite it is an advisory component used by the harness; it doesn&apos;t tune
-          the engine or gate correctness. Start the
+          FrankenSQLite has an implementation in its MVCC crate, but nothing calls it: garbage
+          collection, checkpointing and eviction don&apos;t consult it, and the README describes it
+          as advisory. Start the
           telemetry below and switch regimes to watch the detector respond.
         </Prose>
         <BocpdRegime />
@@ -532,9 +534,9 @@ export default function ArchitecturePage() {
           VERIFICATION
           ================================================================ */}
       <GroupDivider eyebrow="Verification" title="How It Gets Checked">
-        Most of the project&apos;s effort goes into proving the engine behaves like SQLite and that
-        concurrency doesn&apos;t corrupt anything. These techniques live in the test harness, not in
-        the database you link against.
+        Most of the project&apos;s effort goes into checking that the engine behaves like SQLite
+        and that concurrency doesn&apos;t corrupt anything. These techniques mostly live in the
+        test harness; two of them also have narrow uses inside the engine, noted below.
       </GroupDivider>
 
       <Topic id="dpor" title="Exploring Thread Schedules" status={STATUS.dpor}>
@@ -543,9 +545,11 @@ export default function ArchitecturePage() {
           <FrankenJargon term="mazurkiewicz-trace">Mazurkiewicz traces</FrankenJargon> group
           orderings that differ only in the order of independent operations, and{" "}
           <FrankenJargon term="dpor">dynamic partial-order reduction</FrankenJargon> runs one
-          representative from each group. Within a bounded test, that covers every distinct
-          outcome without running every interleaving. Step through below to see three orderings
-          collapse into two classes.
+          representative from each group. FrankenSQLite&apos;s harness enumerates the orderings of
+          small transaction models and groups them this way (two three-step transactions have 20
+          orderings but only 2 distinct outcomes), and the asupersync lab runtime&apos;s DPOR
+          explorer checks small MVCC models within step limits. Step through below to see
+          orderings collapse into classes.
         </Prose>
         <MazurkiewiczTraces />
       </Topic>
@@ -556,10 +560,13 @@ export default function ArchitecturePage() {
           will eventually get a false alarm just by checking so often.{" "}
           <FrankenJargon term="e-process">E-processes</FrankenJargon> are built to be checked
           continuously while keeping the false-alarm rate under a fixed bound, which makes them a
-          good fit for long concurrency soak tests. The harness uses them to watch the MVCC
-          invariants. The engine also has a research-grade, opt-in mode (
-          <code>PRAGMA fsqlite.write_merge = LAB_UNSAFE</code>) that lets an e-process gate skip
-          some SSI checks; the default never does. Run the monitor below, then inject a violation.
+          good fit for long soak tests. In FrankenSQLite they show up in three places: the harness
+          uses one to track SSI&apos;s false-positive rate; each connection carries a small
+          monitor fed with conflict and cache statistics, which can only cancel work for
+          high-priority contexts and so does nothing by default; and a research-grade opt-in mode
+          (<code>PRAGMA fsqlite.write_merge = LAB_UNSAFE</code>) lets an e-process gate skip some
+          SSI checks, which the default never does. Run the monitor below, then inject a
+          violation.
         </Prose>
         <EprocessMonitor />
       </Topic>
@@ -570,7 +577,9 @@ export default function ArchitecturePage() {
           but there&apos;s no single database state all of them could have seen. A{" "}
           <FrankenJargon term="sheaf-theoretic">sheaf-style check</FrankenJargon> treats each
           transaction&apos;s view as a local section and asks whether they glue into one global
-          state. Step through three views below.
+          state. The version in FrankenSQLite&apos;s MVCC crate is a model-level test that works
+          pairwise, flagging two snapshots whose shared reads can&apos;t be put in one order; it
+          doesn&apos;t open real connections. The example below shows that case.
         </Prose>
         <SheafConsistency />
       </Topic>
@@ -579,10 +588,12 @@ export default function ArchitecturePage() {
         <Prose last>
           Latencies are skewed and multi-modal, so mean plus or minus a standard deviation
           misleads. <FrankenJargon term="conformal-prediction">Conformal prediction</FrankenJargon>{" "}
-          produces intervals that hold without assuming a distribution. The engine uses it in one
-          place today, and only if you ask: <code>PRAGMA fsqlite.retry_slo_ms</code> caps how long
-          busy retries may take, calibrated from recent retry latencies. Using it as a
-          performance release gate is still a design target.
+          produces intervals that hold without assuming a distribution. The engine uses it in two
+          places. On Linux, the io_uring backend keeps a window of recent I/O latencies and falls
+          back to plain Unix I/O if one is slower than a conformal upper bound. And, only if you
+          ask, <code>PRAGMA fsqlite.retry_slo_ms</code> caps how long busy retries may take,
+          calibrated from recent retries. Using it as a performance release gate is still a
+          design target.
         </Prose>
         <ConformalCalibration />
       </Topic>

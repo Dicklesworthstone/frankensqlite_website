@@ -8,94 +8,186 @@ import { useSite } from "@/lib/site-state";
 import VizContainer from "./viz-container";
 import { VizExposition } from "./viz-exposition";
 
+type Regime = "oltp" | "bulk" | "idle";
+
 interface DataPoint {
   id: number;
   val: number;
-  regime: "oltp" | "bulk" | "idle";
+  regime: Regime;
+  /** The detector's most likely run length after this observation. */
   runLength: number;
+}
+
+interface DetectorStatus {
+  /** The workload was switched and the detector has not flagged it yet. */
+  pending: boolean;
+  /** Observations between the last switch and the detector flagging it. */
+  lastLag: number | null;
+  /** Change points flagged with no switch behind them. */
+  falseAlarms: number;
+}
+
+// A small, real BOCPD (Adams & MacKay 2007): Gaussian observations with known
+// noise and a Normal prior on each segment's mean. The engine's BocpdMonitor
+// uses Normal-Gamma / Beta-Binomial models; the hazard below matches its default.
+const HAZARD = 1 / 250;
+const OBS_VAR = 6 ** 2; // assumed observation noise (illustrative)
+const PRIOR_MEAN = 50;
+const PRIOR_VAR = 30 ** 2;
+// Prune run-length hypotheses below this probability, and keep at most MAX_HYPOTHESES.
+const MIN_PROB = 1e-8;
+const MAX_HYPOTHESES = 100;
+
+interface BocpdState {
+  runs: number[]; // run length of each surviving hypothesis
+  probs: number[]; // P(run length = runs[i] | data so far)
+  means: number[]; // posterior mean of the segment mean, per hypothesis
+  vars: number[]; // posterior variance of the segment mean, per hypothesis
+}
+
+const initialBocpd = (): BocpdState => ({
+  runs: [0],
+  probs: [1],
+  means: [PRIOR_MEAN],
+  vars: [PRIOR_VAR],
+});
+
+function normalPdf(x: number, mean: number, variance: number): number {
+  return Math.exp(-((x - mean) ** 2) / (2 * variance)) / Math.sqrt(2 * Math.PI * variance);
+}
+
+/** One BOCPD update. Returns the new state and the most likely run length. */
+function bocpdStep(state: BocpdState, x: number): { next: BocpdState; mapRunLength: number } {
+  // Index 0 is the "a new run starts here" hypothesis; it carries only the prior.
+  const runs = [0];
+  const probs = [0];
+  const means = [PRIOR_MEAN];
+  const vars = [PRIOR_VAR];
+  let changeMass = 0;
+  for (let i = 0; i < state.runs.length; i++) {
+    const w = state.probs[i] * normalPdf(x, state.means[i], state.vars[i] + OBS_VAR);
+    changeMass += w * HAZARD;
+    const v = 1 / (1 / state.vars[i] + 1 / OBS_VAR);
+    runs.push(state.runs[i] + 1); // the run grows by one
+    probs.push(w * (1 - HAZARD));
+    vars.push(v);
+    means.push(v * (state.means[i] / state.vars[i] + x / OBS_VAR));
+  }
+  probs[0] = changeMass;
+
+  const total = probs.reduce((a, b) => a + b, 0);
+  if (!(total > 0) || !Number.isFinite(total)) {
+    return { next: initialBocpd(), mapRunLength: 0 };
+  }
+
+  let keep = probs.map((_, i) => i).filter((i) => probs[i] / total >= MIN_PROB);
+  if (keep.length > MAX_HYPOTHESES) {
+    keep = keep.sort((a, b) => probs[b] - probs[a]).slice(0, MAX_HYPOTHESES);
+  }
+  const kept = keep.reduce((sum, i) => sum + probs[i], 0);
+  const next: BocpdState = {
+    runs: keep.map((i) => runs[i]),
+    probs: keep.map((i) => probs[i] / kept),
+    means: keep.map((i) => means[i]),
+    vars: keep.map((i) => vars[i]),
+  };
+
+  let best = 0;
+  for (let j = 1; j < next.probs.length; j++) {
+    if (next.probs[j] > next.probs[best]) best = j;
+  }
+  return { next, mapRunLength: next.runs[best] };
+}
+
+function ordinal(n: number): string {
+  return ["first", "second", "third", "fourth", "fifth"][n - 1] ?? `${n}th`;
+}
+
+function sampleThroughput(regime: Regime): number {
+  if (regime === "oltp") return 70 + Math.random() * 20; // 70-90
+  if (regime === "bulk") return 20 + Math.random() * 10; // 20-30
+  return 5 + Math.random() * 5; // 5-10
 }
 
 export default function BocpdRegime() {
   const { playSfx } = useSite();
   const [data, setData] = useState<DataPoint[]>([]);
-  const [regime, setRegime] = useState<"oltp" | "bulk" | "idle">("oltp");
+  const [regime, setRegime] = useState<Regime>("oltp");
   const [isSimulating, setIsSimulating] = useState(false);
-  const [tick, setTick] = useState(0);
+  const [status, setStatus] = useState<DetectorStatus>({
+    pending: false,
+    lastLag: null,
+    falseAlarms: 0,
+  });
 
-  const runLengthRef = useRef(0);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const regimeRef = useRef<Regime>(regime);
+  const bocpdRef = useRef<BocpdState>(initialBocpd());
+  const tickRef = useRef(0);
+  const prevMapRef = useRef(0);
+  const lastRegimeRef = useRef<Regime>(regime);
+  const switchTickRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    regimeRef.current = regime;
+  }, [regime]);
 
   useEffect(() => {
     if (!isSimulating) {
-      if (timeoutRef.current) clearInterval(timeoutRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
       return;
     }
 
-    timeoutRef.current = setInterval(() => {
-      setTick((t) => t + 1);
+    intervalRef.current = setInterval(() => {
+      tickRef.current += 1;
+      const tick = tickRef.current;
+      const current = regimeRef.current;
+
+      if (current !== lastRegimeRef.current) {
+        lastRegimeRef.current = current;
+        switchTickRef.current = tick;
+      }
+
+      const val = sampleThroughput(current);
+      const { next, mapRunLength } = bocpdStep(bocpdRef.current, val);
+      bocpdRef.current = next;
+
+      // A drop in the most likely run length means the detector now believes
+      // a new segment started recently.
+      const flagged = tick > 1 && mapRunLength < prevMapRef.current;
+      prevMapRef.current = mapRunLength;
+
+      if (flagged) {
+        const switchTick = switchTickRef.current;
+        switchTickRef.current = null;
+        setStatus((s) =>
+          switchTick !== null
+            ? { ...s, pending: false, lastLag: tick - switchTick }
+            : { ...s, falseAlarms: s.falseAlarms + 1 },
+        );
+      } else if (switchTickRef.current !== null) {
+        setStatus((s) => (s.pending ? s : { ...s, pending: true }));
+      }
+
+      setData((prev) =>
+        [...prev, { id: tick, val, regime: current, runLength: mapRunLength }].slice(-30),
+      );
     }, 400);
 
     return () => {
-      if (timeoutRef.current) clearInterval(timeoutRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [isSimulating]);
 
-  useEffect(() => {
-    if (!isSimulating) return;
-
-    let newVal = 0;
-    if (regime === "oltp") {
-      newVal = 70 + Math.random() * 20; // 70-90
-    } else if (regime === "bulk") {
-      newVal = 20 + Math.random() * 10; // 20-30
-    } else {
-      newVal = 5 + Math.random() * 5; // 5-10
-    }
-
-    // BOCPD logic simulation
-    // If the value deviates significantly from the expected mean of the current run, reset run length.
-    // We simplify this by just checking if it crossed a threshold representing the regimes.
-    const expectedOltp = newVal > 60;
-    const expectedBulk = newVal > 15 && newVal <= 40;
-    const expectedIdle = newVal <= 15;
-
-    const prevRegime = data.length > 0 ? data[data.length - 1].regime : regime;
-
-    // Simulate the exact moment of detection
-    if (regime === "oltp" && !expectedOltp) {
-      //
-    }
-    if (regime === "bulk" && !expectedBulk) {
-      //
-    }
-    if (regime === "idle" && !expectedIdle) {
-      //
-    }
-
-    if (regime !== prevRegime) {
-      // The user switched the regime manually, the "algorithm" detects it after 1 tick.
-      runLengthRef.current = 0;
-    } else {
-      runLengthRef.current += 1;
-    }
-
-    const newPoint: DataPoint = {
-      id: tick,
-      val: newVal,
-      regime,
-      runLength: runLengthRef.current,
-    };
-
-    setData((prev) => [...prev, newPoint].slice(-30));
-  }, [tick, isSimulating, regime, data]);
-
   const maxVal = 100;
+  const latest = data.length > 0 ? data[data.length - 1] : null;
 
   return (
     <VizContainer
       title="Bayesian Online Change-Point Detection"
-      description="Database workloads are non-stationary. A quiet night becomes a chaotic morning. FrankenSQLite uses BOCPD to mathematically prove when the workload 'regime' has changed, automatically re-tuning garbage collection and compaction heuristics without manual intervention."
+      description="BOCPD watches a stream of measurements and estimates how long the current regime has lasted, so it can notice when a workload changes character. FrankenSQLite has a BOCPD monitor in fsqlite-mvcc, but nothing in the engine calls it yet; GC, checkpointing and eviction do not adapt to it."
       minHeight={450}
+      status="dormant"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 gap-6">
         {/* Controls */}
@@ -111,7 +203,7 @@ export default function BocpdRegime() {
               {isSimulating ? <StopIcon /> : <PlayIcon />}
             </button>
             <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-              Live Telemetry
+              Simulated Telemetry
             </div>
           </div>
 
@@ -142,7 +234,7 @@ export default function BocpdRegime() {
           {/* Throughput Chart */}
           <div className="flex-1 relative">
             <div className="absolute top-0 left-0 text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <Activity className="w-3 h-3" /> Throughput (ops/sec)
+              <Activity className="w-3 h-3" /> Commit throughput (simulated, arbitrary units)
             </div>
 
             <div className="absolute inset-0 top-6 flex items-end gap-[2px] overflow-hidden border-b border-white/10">
@@ -167,7 +259,8 @@ export default function BocpdRegime() {
           <div className="h-24 relative">
             <div className="absolute top-0 left-0 text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
               <RefreshCw className="w-3 h-3" />{" "}
-              <FrankenJargon term="bocpd">BOCPD Run Length</FrankenJargon>
+              <FrankenJargon term="bocpd">BOCPD</FrankenJargon> most likely run length
+              {latest ? ` (${latest.runLength})` : ""}
             </div>
 
             <div className="absolute inset-0 top-6 flex items-end gap-[2px] overflow-hidden border-b border-white/10">
@@ -185,18 +278,18 @@ export default function BocpdRegime() {
         </div>
 
         {/* Dynamic Commentary */}
-        <div className="h-16 rounded-lg border border-white/10 bg-white/5 p-3 flex items-center gap-4">
+        <div className="min-h-16 rounded-lg border border-white/10 bg-white/5 p-3 flex items-center gap-4">
           <Zap
             className={`w-5 h-5 ${regime === "oltp" ? "text-teal-400" : regime === "bulk" ? "text-amber-400" : "text-slate-500"}`}
           />
           <p className="text-xs text-slate-300 leading-relaxed font-medium">
             {data.length === 0
-              ? "System waiting for load."
-              : regime === "oltp"
-                ? "High-throughput OLTP detected. Engine increases GC frequency and pins hot pages in memory."
-                : regime === "bulk"
-                  ? "Contended bulk insert detected. Engine relaxes version chain limits to prevent aborts."
-                  : "System is idle. Engine initiates background vacuuming and log compaction."}
+              ? "Press play to stream simulated throughput into the detector."
+              : status.pending
+                ? "Workload switched. The detector is still collecting evidence that this is a new regime and not noise."
+                : status.lastLag !== null
+                  ? `Change point flagged at the ${ordinal(status.lastLag + 1)} point of the new regime; the run length restarted.${status.falseAlarms > 0 ? ` False alarms so far: ${status.falseAlarms}.` : ""}`
+                  : "Stable regime. The run length grows by one with every observation."}
           </p>
         </div>
       </div>
@@ -205,47 +298,52 @@ export default function BocpdRegime() {
         whatItIs={
           <>
             <div>
-              You are looking at a live simulation of{" "}
+              You are looking at a small but real{" "}
               <FrankenJargon term="bocpd">
                 Bayesian Online Change-Point Detection (BOCPD)
-              </FrankenJargon>
-              . The top chart shows real-time database throughput. The bottom purple chart shows the
-              mathematical &ldquo;Run Length,&rdquo; how long the engine calculates the current
-              workload regime has lasted.
+              </FrankenJargon>{" "}
+              detector (Adams and MacKay, 2007) running in your browser on simulated throughput.
             </div>
+            <p>
+              BOCPD keeps a probability for every possible &ldquo;run length&rdquo;: the number of
+              observations since the last change. Each new point either extends the current run or
+              starts a new one, weighted by how well each hypothesis predicts it. The bottom chart
+              shows the most likely run length after each point.
+            </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Click <strong>Run Live Telemetry</strong>. Then, dynamically toggle the workload
-              between <strong>Idle Night</strong>, <strong>OLTP Rush</strong>, and{" "}
-              <strong>Bulk Load</strong>.
+              Press play, then switch between <strong>Idle Night</strong>,{" "}
+              <strong>OLTP Rush</strong>, and <strong>Bulk Load</strong>.
             </p>
             <p>
-              Notice what happens in the bottom purple chart when you switch regimes. The engine
-              does not rely on a moving average slowly crossing a threshold. Instead, the Bayesian
-              model computes a posterior probability over possible change-points, identifies when a
-              regime shift has occurred, instantly drops the Run Length to zero, and triggers an
-              immediate adaptation in the engine&apos;s behavior.
+              Within a regime the run length climbs by one per point. After a switch it drops back
+              near zero, often on the first new point when the jump is large, and within a few
+              points when it is smaller (try Idle to Bulk): one odd value could be noise, so the
+              detector waits until a new regime explains the data better. The message under the
+              charts reports the delay. The detector never sees which button you pressed, only the
+              numbers.
             </p>
           </>
         }
         whyItMatters={
           <>
             <p>
-              Database administrators traditionally spend hours tuning static configuration
-              thresholds (e.g., &ldquo;run garbage collection every 1000 commits&rdquo;). The
-              problem is that database workloads are non-stationary: a threshold tuned for a quiet
-              afternoon will cause excessive latency during a traffic spike.
+              Fixed tuning thresholds (&ldquo;run GC every N commits&rdquo;) are chosen for one
+              workload and can be wrong for the next. A change-point signal tells a tuning layer
+              when its old measurements stopped being representative, without picking a window
+              size for a moving average.
             </p>
             <div>
-              By integrating <FrankenJargon term="bocpd">BOCPD</FrankenJargon> directly into the
-              telemetry loop, FrankenSQLite acts as an automated tuning layer. It detects when the
-              workload regime has shifted and re-tunes its own{" "}
-              <FrankenJargon term="mvcc">MVCC</FrankenJargon> garbage collection,{" "}
-              <FrankenJargon term="arc-cache">ARC cache</FrankenJargon> eviction heuristics, and
-              checkpoint intervals without manual intervention.
+              Where it stands: <code>fsqlite-mvcc</code> contains <code>BocpdMonitor</code>{" "}
+              (Normal-Gamma and Beta-Binomial models, hazard 1/250) and tests for it, but no engine
+              code calls it. <FrankenJargon term="mvcc">MVCC</FrankenJargon> garbage collection,
+              checkpointing and page eviction run on their normal policies. A policy controller
+              that accepts a regime-shift flag exists, and only harness tests drive it. The test
+              harness also uses a simpler windowed detector to classify drift in conformance
+              mismatch rates.
             </div>
           </>
         }

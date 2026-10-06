@@ -180,14 +180,14 @@ export const jargonDictionary: Record<string, JargonTerm> = {
   bocpd: {
     term: "BOCPD (Bayesian Online Change-Point Detection)",
     short: "A streaming algorithm that notices when a time series changes behavior.",
-    long: "BOCPD keeps a probability distribution over how long the current regime has lasted. When new observations stop fitting, probability mass shifts to a short run length, signalling a change point. FrankenSQLite has an implementation that the test harness uses as an advisory signal about workload shifts; it doesn't tune the engine or gate correctness.",
+    long: "BOCPD keeps a probability distribution over how long the current regime has lasted. When new observations stop fitting, probability mass shifts to a short run length, signalling a change point. FrankenSQLite has an implementation in its MVCC crate that nothing calls yet; it doesn't tune garbage collection, checkpoints or the cache.",
     analogy:
       "A thermostat that doesn't just read the temperature but notices when the season has changed.",
   },
   "sheaf-theoretic": {
     term: "Sheaf-Style Consistency Check",
     short: "Checking that many local views can be glued into one consistent global state.",
-    long: "Pairwise checks can miss anomalies where every pair of transactions looks fine but no single database state explains all of them. Treating each transaction's view as a local section and asking whether the sections glue together catches that class. In FrankenSQLite this is a model-level test in the MVCC crate, not part of the running database.",
+    long: "Pairwise checks can miss anomalies where every pair of transactions looks fine but no single database state explains all of them. Treating each transaction's view as a local section and asking whether the sections glue together catches that class. FrankenSQLite's version is a model-level test in the MVCC crate that checks pairs of snapshots; it isn't part of the running database.",
   },
   varint: {
     term: "Varint",
@@ -219,7 +219,7 @@ export const jargonDictionary: Record<string, JargonTerm> = {
   "arc-cache": {
     term: "ARC (Adaptive Replacement Cache)",
     short: "A cache eviction policy that balances recently used and frequently used pages.",
-    long: "ARC keeps two lists, one for pages seen once recently and one for pages seen more than once, plus 'ghost' lists of recently evicted keys. Hits in the ghost lists tell it which side deserves more room. FrankenSQLite's pager implements ARC as an alternative policy selectable through its API; the default is S3-FIFO.",
+    long: "ARC keeps two lists, one for pages seen once recently and one for pages seen more than once, plus 'ghost' lists of recently evicted keys. Hits in the ghost lists tell it which side deserves more room. FrankenSQLite's pager crate implements ARC, but connections always use S3-FIFO and there's no switch for ARC.",
     analogy:
       "A librarian who tracks both what was just borrowed and what people asked for after it had been sent back to storage.",
   },
@@ -240,7 +240,7 @@ export const jargonDictionary: Record<string, JargonTerm> = {
   "conformal-prediction": {
     term: "Conformal Prediction",
     short: "Prediction intervals that hold without assuming the data follows any particular distribution.",
-    long: "Latencies are skewed and full of outliers, so intervals built on a normal distribution are often wrong. Conformal methods use recent observations directly to set thresholds with a target coverage rate. FrankenSQLite uses this in one opt-in place: PRAGMA fsqlite.retry_slo_ms caps busy-retry latency based on recent retries.",
+    long: "Latencies are skewed and full of outliers, so intervals built on a normal distribution are often wrong. Conformal methods use recent observations directly to set thresholds with a target coverage rate. FrankenSQLite uses this in two places: on Linux, the io_uring backend falls back to plain I/O when a request is slower than a conformal latency bound, and the opt-in PRAGMA fsqlite.retry_slo_ms caps busy-retry latency based on recent retries.",
   },
   "timeline-profiling": {
     term: "Transaction Telemetry",
@@ -314,7 +314,7 @@ export const jargonDictionary: Record<string, JargonTerm> = {
   "e-process": {
     term: "E-Process",
     short: "A statistical test you can check after every observation without inflating false alarms.",
-    long: "Ordinary tests assume you look at the result once. An e-process is a running bet against the hypothesis that keeps its false-alarm guarantee no matter when you stop and look. FrankenSQLite's harness uses e-processes to watch MVCC invariants during long tests, and a research-grade opt-in mode (PRAGMA fsqlite.write_merge = LAB_UNSAFE) uses one to skip some SSI checks.",
+    long: "Ordinary tests assume you look at the result once. An e-process is a running bet against the hypothesis that keeps its false-alarm guarantee no matter when you stop and look. In FrankenSQLite, the harness uses one to track SSI's false-positive rate, each connection carries a small monitor that does nothing by default, and a research-grade opt-in mode (PRAGMA fsqlite.write_merge = LAB_UNSAFE) uses one to skip some SSI checks.",
   },
   "mazurkiewicz-trace": {
     term: "Mazurkiewicz Trace",
@@ -325,7 +325,7 @@ export const jargonDictionary: Record<string, JargonTerm> = {
   dpor: {
     term: "DPOR (Dynamic Partial-Order Reduction)",
     short: "Systematically exploring thread schedules while skipping equivalent ones.",
-    long: "Instead of trying random schedules, DPOR runs a schedule, looks at which steps actually conflicted, and only branches where reordering could change the result. Within the bounds of a test, it covers every distinct outcome without running every interleaving. FrankenSQLite uses it in testing, through its runtime's deterministic lab mode.",
+    long: "Instead of trying random schedules, DPOR runs a schedule, looks at which steps actually conflicted, and only branches where reordering could change the result. Within the bounds of a test, it covers every distinct outcome without running every interleaving. FrankenSQLite uses it in testing, on small MVCC models, through its runtime's deterministic lab mode.",
     analogy: "Exploring a maze but skipping corridors you already know lead back to the same room.",
     related: ["mazurkiewicz-trace"],
   },

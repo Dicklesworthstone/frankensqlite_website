@@ -94,8 +94,9 @@ export default function DatabaseCracking() {
   return (
     <VizContainer
       title="Database Cracking"
-      description="Creating indexes requires DBA guesswork and upfront cost. Database Cracking physically reorders the data in-place as a side effect of normal queries. The database 'learns' to index itself based exactly on what users are asking."
+      description="Database cracking (Idreos et al., 2007) partitions a column a little more on every range query, so the ranges people actually ask for get cheaper to scan without an upfront index build. FrankenSQLite has a cracked-column implementation in fsqlite-btree; the query engine does not use it."
       minHeight={400}
+      status="dormant"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 justify-between gap-6 relative">
         {/* Controls */}
@@ -158,8 +159,8 @@ export default function DatabaseCracking() {
                 animate={{ opacity: 1, scale: 1 }}
                 className="text-emerald-400 flex items-center gap-2"
               >
-                <SplitSquareHorizontal className="w-4 h-4" /> Data physically cracked. Future
-                queries in this range are faster.
+                <SplitSquareHorizontal className="w-4 h-4" /> Column partitioned in place. Later
+                queries in these ranges scan a smaller piece.
               </motion.span>
             )}
           </AnimatePresence>
@@ -214,48 +215,50 @@ export default function DatabaseCracking() {
         whatItIs={
           <>
             <p>
-              You are looking at an unsorted array of data representing a single column in the
-              database.
+              You are looking at an unsorted copy of one column&apos;s values.
             </p>
-            <p>
-              Normally, if you want fast <code>WHERE</code> queries on this column, a DBA has to
-              manually run a <code>CREATE INDEX</code> statement. This halts writes, consumes
-              massive amounts of upfront CPU and Memory, and doubles the disk space used.
-            </p>
+            <div>
+              The usual way to speed up <code>WHERE</code> queries on a column is{" "}
+              <code>CREATE INDEX</code>: one full pass to build a{" "}
+              <FrankenJargon term="btree">B-tree</FrankenJargon> up front, extra storage, and extra
+              work on every later write. You also have to guess which columns deserve it.
+            </div>
           </>
         }
         howToUse={
           <>
             <p>
-              Instead of manually creating an index, just start querying the data! Click{" "}
-              <strong>Q1: WHERE val &lt; 50</strong>.
+              Click <strong>Q1: WHERE val &lt; 50</strong>. While answering the query, the column
+              is partitioned in place: values below 50 move left, the rest move right, and a
+              &ldquo;crack&rdquo; (the teal line) records where the split is.
             </p>
             <p>
-              The engine physically partitions the array in-place, moving all numbers less than 50
-              to the left, and greater than 50 to the right. It drops a &ldquo;crack&rdquo; (the
-              glowing teal line) between them.
+              Now click <strong>Q2</strong> and then <strong>Q3</strong>. Each query only
+              partitions the piece its bounds fall in, so the pieces get smaller in the ranges you
+              query and stay coarse elsewhere.
             </p>
-            <div>
-              Now click <strong>Q2</strong> and then <strong>Q3</strong>. Watch as subsequent
-              queries continue to crack the existing partitions into smaller and tighter bounds. The
-              data is physically sorting itself into a{" "}
-              <FrankenJargon term="btree">B-tree</FrankenJargon> structure directly as a side effect
-              of your queries.
-            </div>
+            <p>
+              Repeat this many times and the column approaches sorted order. It never becomes a
+              B-tree: it is a partially sorted array plus a small map of crack positions.
+            </p>
           </>
         }
         whyItMatters={
           <>
             <div>
-              Choosing which columns to index is a persistent source of misallocation for database
-              administrators. If they guess wrong, the index consumes disk space and slows down{" "}
-              <code>INSERT</code> operations for no benefit, while the columns that actually need a{" "}
-              <FrankenJargon term="btree">B-tree</FrankenJargon> index remain unoptimized.
+              <FrankenJargon term="database-cracking">Cracking</FrankenJargon> moves indexing cost
+              from an upfront build into the first queries that touch a range, and spends nothing
+              on columns nobody queries. The trade-offs: early queries do extra partitioning work,
+              the reordered copy has to be kept consistent with updates, and concurrent queries
+              that crack the same column need coordination.
             </div>
             <div>
-              <FrankenJargon term="database-cracking">Database Cracking</FrankenJargon> requires
-              zero upfront configuration. The physical layout of the data adapts autonomously to the
-              exact questions users are asking. If a column is never queried, it is never indexed.
+              Where it stands: <code>CrackedColumn</code> in{" "}
+              <code>fsqlite-btree/src/cracking.rs</code> implements this over an in-memory column and
+              is covered by tests, but no query path calls it. The planner also has a small
+              &ldquo;cracking hint&rdquo; cache that remembers the last index chosen per table; the
+              connection does not pass one in, so it is unused as well. Tables and indexes are
+              ordinary SQLite B-trees.
             </div>
           </>
         }

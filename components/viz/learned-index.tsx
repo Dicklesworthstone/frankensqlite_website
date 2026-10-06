@@ -7,13 +7,18 @@ import { FrankenJargon } from "@/components/franken-jargon";
 import VizContainer from "./viz-container";
 import { VizExposition } from "./viz-exposition";
 
+// 40 sorted keys with deterministic jitter (sorted, roughly evenly spaced).
+const KEYS = Array.from({ length: 40 }, (_, i) => i * 10 + ((i * 7) % 10));
+// Keys to query; two of them land one slot away from the model's prediction.
+const QUERY_KEYS = [KEYS[15], KEYS[27], KEYS[32]];
+// Search window around the prediction. Illustrative; the engine's default max_error is 16.
+const ERROR_BOUND = 2;
+
 export default function LearnedIndex() {
   const [target, setTarget] = useState<number | null>(null);
   const [step, setStep] = useState(0);
 
-  const [keys] = useState(() =>
-    Array.from({ length: 40 }, (_, i) => i * 10 + Math.floor(Math.random() * 5)),
-  );
+  const keys = KEYS;
 
   const timeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
@@ -23,10 +28,11 @@ export default function LearnedIndex() {
     };
   }, []);
 
-  // The "Learned Model" is basically y = mx + b.
-  // We approximate the slope m and intercept b.
+  // A single linear segment, pos = m * key + b, fitted to this key range.
+  // The engine fits several such segments (piecewise linear) to real key distributions.
   const m = 40 / 400; // 40 items over range ~400
   const b = 0;
+  const foundIdx = target === null ? -1 : keys.indexOf(target);
 
   const handleSearch = (key: number) => {
     timeoutsRef.current.forEach(clearTimeout);
@@ -50,8 +56,9 @@ export default function LearnedIndex() {
   return (
     <VizContainer
       title="Learned Indexes"
-      description="Standard B-trees require O(log N) memory lookups to find a key. FrankenSQLite uses a machine learning model to mathematically predict the exact position of a key, reducing tree traversal to O(1) arithmetic."
+      description="A learned index fits a simple model to sorted keys so it can guess where a key sits, then checks a small window around the guess. FrankenSQLite has one as research code in fsqlite-btree; queries do not use it yet."
       minHeight={450}
+      status="dormant"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 justify-between gap-6 relative overflow-hidden">
         {/* Controls */}
@@ -61,7 +68,7 @@ export default function LearnedIndex() {
             Query
           </div>
           <div className="flex gap-2">
-            {[150, 270, 320].map((k) => (
+            {QUERY_KEYS.map((k) => (
               <button
                 key={k}
                 onClick={() => handleSearch(k)}
@@ -103,8 +110,8 @@ export default function LearnedIndex() {
                   exit={{ opacity: 0, y: -10 }}
                   className="text-amber-400 flex items-center gap-2"
                 >
-                  <Search className="w-4 h-4" /> Standard B-Tree: Traversing root to leaf (O(log N)
-                  memory jumps)
+                  <Search className="w-4 h-4" /> B-tree: descend root to leaf, then binary search
+                  the leaf (O(log N) comparisons)
                 </motion.span>
               )}
               {step === 2 && (
@@ -115,8 +122,8 @@ export default function LearnedIndex() {
                   exit={{ opacity: 0, y: -10 }}
                   className="text-purple-400 flex items-center gap-2"
                 >
-                  <Brain className="w-4 h-4 animate-pulse" /> Learned Index: Computing pos = Key *{" "}
-                  {m.toFixed(3)} + {b}
+                  <Brain className="w-4 h-4 animate-pulse" /> Learned index: pos ≈ key ×{" "}
+                  {m.toFixed(3)} + {b} = {target === null ? "?" : Math.round(target * m + b)}
                 </motion.span>
               )}
               {step === 3 && (
@@ -127,7 +134,8 @@ export default function LearnedIndex() {
                   exit={{ opacity: 0, y: -10 }}
                   className="text-teal-400 flex items-center gap-2"
                 >
-                  <FastForward className="w-4 h-4" /> Learned Index: Local scan around predicted pos
+                  <FastForward className="w-4 h-4" /> Learned index: scan ±{ERROR_BOUND} slots
+                  around the prediction
                 </motion.span>
               )}
               {step === 4 && (
@@ -137,7 +145,8 @@ export default function LearnedIndex() {
                   animate={{ opacity: 1, scale: 1 }}
                   className="text-emerald-400 font-bold"
                 >
-                  Found Key {target}!
+                  Found key {target} at slot {foundIdx} (prediction was off by{" "}
+                  {target === null ? 0 : Math.abs(Math.round(target * m + b) - foundIdx)})
                 </motion.span>
               )}
             </AnimatePresence>
@@ -146,7 +155,7 @@ export default function LearnedIndex() {
           {/* The Data Array */}
           <div className="flex-1 border border-white/5 bg-white/[0.02] rounded-xl p-4 flex flex-wrap gap-[1px] content-start relative overflow-hidden">
             {/* Predicted Boundary Highlights */}
-            {step >= 2 && target && (
+            {step >= 2 && target !== null && (
               <motion.div
                 initial={{ opacity: 0, scale: 2 }}
                 animate={{ opacity: 1, scale: 1 }}
@@ -158,31 +167,29 @@ export default function LearnedIndex() {
             )}
 
             {keys.map((k, i) => {
-              const predictedIdx = target ? Math.round(target * m + b) : -1;
-              const errorBound = 2; // Look at prediction +/- 2
+              const predictedIdx = target !== null ? Math.round(target * m + b) : -1;
+              const probes = target !== null ? binarySearchProbes(keys, target) : [];
 
               let stateClass = "bg-white/5 border-white/10 text-slate-600";
 
-              if (step === 1 && target) {
-                // Simulate B-Tree jump
-                if (i === 19 || i === 9 || i === 29 || i === 14 || i === 24)
+              if (step === 1 && target !== null) {
+                // Comparisons a binary search makes on the way to the key
+                if (probes.includes(i))
                   stateClass = "bg-amber-500/20 border-amber-500/50 text-amber-400";
-              } else if (step === 2 && target) {
-                // Highlight predicted area
-                if (Math.abs(i - predictedIdx) <= errorBound)
+              } else if (step === 2 && target !== null) {
+                // Highlight the window around the prediction
+                if (Math.abs(i - predictedIdx) <= ERROR_BOUND)
                   stateClass =
                     "bg-purple-500/20 border-purple-500/50 text-purple-300 shadow-[0_0_15px_rgba(168,85,247,0.3)] z-10 scale-110";
-              } else if (step === 3 && target) {
-                // Scan
-                if (Math.abs(i - predictedIdx) <= errorBound) {
-                  if (k <= target) stateClass = "bg-teal-500/20 border-teal-500/50 text-teal-300";
+              } else if (step === 3 && target !== null) {
+                // Linear scan from the low edge of the window up to the key
+                if (Math.abs(i - predictedIdx) <= ERROR_BOUND) {
+                  if (i <= foundIdx) stateClass = "bg-teal-500/20 border-teal-500/50 text-teal-300";
                   else
                     stateClass = "bg-purple-500/10 border-purple-500/20 text-purple-400 opacity-50";
                 }
-              } else if (step === 4 && target) {
-                // Found
-                const isClosest = Math.abs(k - target) <= 5; // Simulating finding it
-                if (isClosest)
+              } else if (step === 4 && target !== null) {
+                if (i === foundIdx)
                   stateClass =
                     "bg-emerald-500 text-black font-black shadow-[0_0_20px_rgba(16,185,129,0.8)] z-20 scale-125";
               }
@@ -204,51 +211,71 @@ export default function LearnedIndex() {
         whatItIs={
           <>
             <div>
-              You are looking at an ordered array of database records. Normally, a database uses a{" "}
-              <FrankenJargon term="btree">B-Tree</FrankenJargon> to find a specific key, which
-              requires multiple jumps through memory (root node → internal nodes → leaf node).
+              You are looking at 40 sorted keys. To find one, a database normally walks a{" "}
+              <FrankenJargon term="btree">B-tree</FrankenJargon> from the root to a leaf and then
+              binary-searches inside that leaf.
             </div>
             <div>
-              A <FrankenJargon term="learned-index">Learned Index</FrankenJargon> replaces the tree
-              with a mathematical model. It learns the distribution of the data so it can calculate
-              the position directly.
+              A <FrankenJargon term="learned-index">learned index</FrankenJargon> (Kraska et al.,
+              2018) instead fits a line to the keys, uses it to guess a position, and scans a small
+              window around the guess. The window size is the model&apos;s maximum error, fixed when
+              the index is built.
             </div>
           </>
         }
         howToUse={
           <>
             <p>
-              Click <strong>Find Key 270</strong>. The visualization will first show what a standard
-              B-Tree does: jumping around memory (the amber squares) doing a binary search.
+              Click <strong>Find Key {QUERY_KEYS[1]}</strong>. The amber squares are the keys a
+              binary search compares against on its way to the target.
             </p>
             <p>
-              Then, it shows what the Learned Index does: it treats the data like a line on a graph.
-              It multiplies the key (270) by a mathematically pre-calculated slope, and instantly
-              predicts the exact physical location on disk (the purple glow).
+              Next the model computes a position from the key with one multiply and one add (the
+              purple window). The keys are not perfectly evenly spaced, so the guess can land a
+              slot away from the real position.
             </p>
             <p>
-              Because the model isn&apos;t perfect, it then does a very fast, localized linear scan
-              (the teal squares) to find the exact target.
+              Finally it scans the window from the left (teal) until it reaches the key. Try all
+              three buttons: two land one slot away from the prediction, one lands exactly on it.
             </p>
           </>
         }
         whyItMatters={
           <>
             <div>
-              Traversing a large <FrankenJargon term="btree">B-tree</FrankenJargon> requires O(log
-              N) random memory accesses. On modern hardware, random reads are orders of magnitude
-              slower than sequential scans.
+              It is a trade, not a free win. A{" "}
+              <FrankenJargon term="btree">B-tree</FrankenJargon> handles inserts and any key
+              distribution. A{" "}
+              <FrankenJargon term="learned-index">learned index</FrankenJargon> can be smaller and
+              need fewer comparisons on static, smoothly distributed keys, but it has to be rebuilt
+              when the data changes, and skewed keys need more segments.
             </div>
             <div>
-              By replacing tree pointers with simple floating-point math, a{" "}
-              <FrankenJargon term="learned-index">Learned Index</FrankenJargon> transforms expensive
-              random I/O into O(1) arithmetic followed by a cache-friendly sequential scan. It
-              reduces the memory footprint of the index and accelerates read performance on large
-              datasets.
+              Where it stands: <code>fsqlite-btree</code> contains a piecewise-linear{" "}
+              <code>LearnedIndex</code> over sorted <code>u64</code> keys (lookup is a binary search
+              over segments, then a scan of up to ±16 slots by default) and a{" "}
+              <code>LearnedRowIdIndex</code> experiment. Both are tested, but no query path calls
+              them. Lookups go through the normal B-tree, which for a million rows on 4 KB pages is
+              typically three or four levels deep.
             </div>
           </>
         }
       />
     </VizContainer>
   );
+}
+
+/** Indexes a binary search compares against while looking for `target`. */
+function binarySearchProbes(sorted: number[], target: number): number[] {
+  const probes: number[] = [];
+  let lo = 0;
+  let hi = sorted.length - 1;
+  while (lo <= hi) {
+    const mid = Math.floor((lo + hi) / 2);
+    probes.push(mid);
+    if (sorted[mid] === target) break;
+    if (sorted[mid] < target) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  return probes;
 }

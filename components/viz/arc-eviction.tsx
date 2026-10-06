@@ -101,8 +101,9 @@ export default function ArcEviction() {
   return (
     <VizContainer
       title="Adaptive Replacement Cache (ARC)"
-      description="LRU caching fails when large table scans evict your working set. FrankenSQLite uses ARC, which auto-tunes itself between Recency (T1) and Frequency (T2) based on ghost hits (B1, B2)."
+      description="ARC balances a recency list (T1) against a frequency list (T2) and uses ghost lists of recently evicted keys (B1, B2) to decide which side should grow. FrankenSQLite implements ARC in fsqlite-pager, but connections use S3-FIFO, the default eviction policy; ARC is not wired to a PRAGMA or connection option."
       minHeight={450}
+      status="dormant"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 gap-6 relative justify-between">
         {/* Controls */}
@@ -133,10 +134,10 @@ export default function ArcEviction() {
             style={{ width: `${(p / CAPACITY) * 100}%` }}
           />
           <div className="absolute left-4 z-10 text-[10px] font-mono text-teal-400">
-            Recency Bias (p) = {p}
+            T1 target (p) = {p}
           </div>
           <div className="absolute right-4 z-10 text-[10px] font-mono text-amber-400">
-            Frequency Bias (c-p) = {CAPACITY - p}
+            T2 target (c − p) = {CAPACITY - p}
           </div>
         </div>
 
@@ -197,52 +198,52 @@ export default function ArcEviction() {
         whatItIs={
           <>
             <div>
-              You are looking at a live simulation of the{" "}
-              <FrankenJargon term="arc-cache">Adaptive Replacement Cache (ARC)</FrankenJargon>.
-              Standard databases use an LRU (Least Recently Used) list to decide what{" "}
-              <FrankenJargon term="btree">B-tree pages</FrankenJargon> to keep in RAM. ARC is more
-              adaptive: it uses four distinct lists.
+              You are looking at a six-page simulation of the{" "}
+              <FrankenJargon term="arc-cache">Adaptive Replacement Cache (ARC)</FrankenJargon>{" "}
+              (Megiddo and Modha, 2003). Plain LRU keeps one list ordered by last use. ARC keeps
+              four.
             </div>
             <p>
-              T1 stores &ldquo;Recent&rdquo; items. T2 stores &ldquo;Frequent&rdquo; items. B1 and
-              B2 are &ldquo;Ghost&rdquo; lists; they don&apos;t actually store data, they just
-              remember the metadata of things that were recently evicted.
+              T1 holds pages seen once recently. T2 holds pages seen at least twice. B1 and B2 are
+              ghost lists: they remember only the keys of pages recently evicted from T1 and T2, not
+              the data. The target size of T1, <code>p</code>, moves when a ghost is requested
+              again.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Click on several different pages to fill up the T1 (Recent) cache. Once it is full,
-              notice how the oldest item drops down into the B1 (Ghost) list.
+              Request page 1 twice so it moves to T2. Then request 2, 3, 4, 5, 6 and 7. Once six
+              pages are cached, each new miss pushes the oldest T1 page into the B1 ghost list.
             </p>
             <p>
-              Now, request a page that is sitting in the B1 Ghost list. Watch the slider in the
-              middle! Because you requested something the cache recently threw away, ARC
-              mathematically shifts the <code>p</code> boundary to favor recency, shrinking the
-              frequency side to compensate.
+              Now request a page that is sitting in B1. It was evicted too early, so ARC raises{" "}
+              <code>p</code> (the bar in the middle) to give recency more room, and the page comes
+              back into T2. A hit in B2 lowers <code>p</code> instead.
             </p>
             <p>
-              Request the same page multiple times to see it graduate into the T2 (Frequent) cache.
+              Reset and request only new pages: nothing reaches T2, T1 fills, and each further miss
+              drops the oldest page outright without leaving a ghost.
             </p>
           </>
         }
         whyItMatters={
           <>
+            <div>
+              A large <code>SELECT *</code> touches each page once. Under LRU those one-time pages
+              can push out the frequently used{" "}
+              <FrankenJargon term="btree">B-tree</FrankenJargon> pages. Under{" "}
+              <FrankenJargon term="arc-cache">ARC</FrankenJargon> the scan mostly churns T1, while
+              pages in T2 survive, and the ghost lists let it shift the balance when the workload
+              changes.
+            </div>
             <p>
-              A classic database failure mode is a user running a <code>SELECT *</code> across a
-              large table. In an LRU system, this single sequential scan evicts the hot indexes and{" "}
-              <FrankenJargon term="btree">B-tree</FrankenJargon> pages your production application
-              depends on, causing a sudden spike in disk I/O for subsequent queries.
-            </p>
-            <p>
-              Because <FrankenJargon term="arc-cache">ARC</FrankenJargon> dynamically balances
-              recency against frequency, a full table scan fills T1 and eventually flows into B1,
-              leaving frequently accessed hot data safely in T2. Combined with the{" "}
-              <FrankenJargon term="cooling-protocol">cooling protocol</FrankenJargon> and{" "}
-              <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> for in-memory
-              page references, this substantially reduces cache thrashing without requiring manual
-              memory partition tuning.
+              Where it stands: FrankenSQLite&apos;s page cache uses S3-FIFO by default, which also
+              resists scans. An ARC policy is implemented and tested in <code>fsqlite-pager</code>{" "}
+              (keyed by page number and commit sequence, since MVCC keeps several versions of a
+              page). It can be selected on a page cache through the crate&apos;s Rust API, but the
+              pager a connection opens always uses S3-FIFO, and there is no PRAGMA to switch.
             </p>
           </>
         }

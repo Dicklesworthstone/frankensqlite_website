@@ -11,81 +11,128 @@ interface Page {
   id: number;
   state: "hot" | "cooling" | "cold";
   value: string;
+  /** Accesses since the last cooling scan. */
+  hits: number;
+  /** Order in which the page entered COOLING; eviction takes the oldest first. */
+  cooledAt: number;
+}
+
+/** Frames available in this toy buffer pool (HOT + COOLING pages). */
+const CAPACITY = 5;
+/** A HOT page with fewer accesses than this since the last scan cools (engine default: 2). */
+const COOLING_THRESHOLD = 2;
+const ROOT_ID = 1;
+
+const INITIAL_PAGES: Page[] = [
+  { id: 1, state: "hot", value: "Root P1", hits: 0, cooledAt: 0 },
+  { id: 2, state: "hot", value: "Users P2", hits: 3, cooledAt: 0 },
+  { id: 3, state: "hot", value: "Users P3", hits: 1, cooledAt: 0 },
+  { id: 4, state: "cooling", value: "Logs P4", hits: 0, cooledAt: 1 },
+  { id: 5, state: "cooling", value: "Logs P5", hits: 0, cooledAt: 2 },
+  { id: 6, state: "cold", value: "Archive P6", hits: 0, cooledAt: 0 },
+];
+
+const resident = (pages: Page[]) => pages.filter((p) => p.state !== "cold").length;
+
+/**
+ * Make room for one more resident page by evicting the oldest COOLING page
+ * (COOLING -> COLD). HOT pages and the pinned root are never evicted.
+ */
+function makeRoom(pages: Page[]): { pages: Page[]; evicted: Page | null; ok: boolean } {
+  if (resident(pages) < CAPACITY) return { pages, evicted: null, ok: true };
+  const victim = pages
+    .filter((p) => p.state === "cooling" && p.id !== ROOT_ID)
+    .sort((a, b) => a.cooledAt - b.cooledAt)[0];
+  if (!victim) return { pages, evicted: null, ok: false };
+  return {
+    pages: pages.map((p) => (p.id === victim.id ? { ...p, state: "cold" as const, hits: 0 } : p)),
+    evicted: victim,
+    ok: true,
+  };
 }
 
 export default function CoolingProtocol() {
-  const [pages, setPages] = useState<Page[]>([
-    { id: 1, state: "hot", value: "Root P1" },
-    { id: 2, state: "hot", value: "Users P2" },
-    { id: 3, state: "hot", value: "Users P3" },
-    { id: 4, state: "cooling", value: "Logs P4" },
-    { id: 5, state: "cooling", value: "Logs P5" },
-    { id: 6, state: "cold", value: "Archive P6" },
-  ]);
+  const [pages, setPages] = useState<Page[]>(INITIAL_PAGES);
+  const [message, setMessage] = useState(
+    "Click a page to access it, or run a cooling scan.",
+  );
 
   const touchPage = (id: number) => {
-    setPages((prev) =>
-      prev.map((p) => {
-        if (p.id === id) {
-          return { ...p, state: "hot" };
-        }
-        return p;
-      }),
+    const page = pages.find((p) => p.id === id);
+    if (!page) return;
+    if (page.state !== "cold") {
+      // Access: count it; a COOLING page is re-heated to HOT.
+      setPages(
+        pages.map((p) => (p.id === id ? { ...p, state: "hot" as const, hits: p.hits + 1 } : p)),
+      );
+      setMessage(
+        page.state === "cooling"
+          ? `${page.value} was accessed while COOLING, so it is HOT again.`
+          : `${page.value} accessed (${page.hits + 1} since the last scan).`,
+      );
+      return;
+    }
+    // COLD page: load it from disk, which needs a free frame.
+    const room = makeRoom(pages);
+    if (!room.ok) {
+      setMessage("No free frame and no COOLING page to evict. Run a cooling scan first.");
+      return;
+    }
+    setPages(
+      room.pages.map((p) => (p.id === id ? { ...p, state: "hot" as const, hits: 1 } : p)),
+    );
+    setMessage(
+      room.evicted
+        ? `Evicted ${room.evicted.value} (COOLING → COLD) to load ${page.value} from disk.`
+        : `Loaded ${page.value} from disk into a free frame.`,
     );
   };
 
   const runBackgroundScan = () => {
-    setPages((prev) =>
-      prev.map((p) => {
-        if (p.id === 1) return p; // Root page pinned hot
-        if (p.state === "hot") return { ...p, state: "cooling" };
-        if (p.state === "cooling") return { ...p, state: "cold" };
-        return p;
+    let cooled = 0;
+    const seq = Math.max(...pages.map((p) => p.cooledAt), 0);
+    setPages(
+      pages.map((p) => {
+        if (p.id === ROOT_ID) return { ...p, hits: 0 }; // Root page pinned HOT
+        if (p.state === "hot" && p.hits < COOLING_THRESHOLD) {
+          cooled += 1;
+          return { ...p, state: "cooling" as const, hits: 0, cooledAt: seq + cooled };
+        }
+        return { ...p, hits: 0 };
       }),
+    );
+    setMessage(
+      `Cooling scan: ${cooled} HOT page${cooled === 1 ? "" : "s"} with fewer than ${COOLING_THRESHOLD} accesses moved to COOLING. Counters reset.`,
     );
   };
 
   const fetchNewPage = () => {
     const newId = Math.max(...pages.map((p) => p.id), 0) + 1;
-
-    setPages((prev) => {
-      // Find a cold page to evict
-      const coldIdx = prev.findIndex((p) => p.state === "cold");
-      const next = [...prev];
-      if (coldIdx >= 0) {
-        next.splice(coldIdx, 1);
-      } else {
-        // Force a scan if no cold pages (simplified for viz)
-        const scanned = prev.map((p) =>
-          p.id === 1
-            ? p
-            : p.state === "hot"
-              ? { ...p, state: "cooling" as const }
-              : { ...p, state: "cold" as const },
-        );
-        return [...scanned, { id: newId, state: "hot", value: `Data P${newId}` }];
-      }
-
-      return [...next, { id: newId, state: "hot", value: `Data P${newId}` }];
-    });
+    const room = makeRoom(pages);
+    if (!room.ok) {
+      setMessage("No free frame and no COOLING page to evict. Run a cooling scan first.");
+      return;
+    }
+    const value = `Data P${newId}`;
+    setPages([...room.pages, { id: newId, state: "hot", value, hits: 1, cooledAt: 0 }]);
+    setMessage(
+      room.evicted
+        ? `Evicted ${room.evicted.value} (COOLING → COLD) to load ${value}.`
+        : `Loaded ${value} into a free frame.`,
+    );
   };
 
   const reset = () => {
-    setPages([
-      { id: 1, state: "hot", value: "Root P1" },
-      { id: 2, state: "hot", value: "Users P2" },
-      { id: 3, state: "hot", value: "Users P3" },
-      { id: 4, state: "cooling", value: "Logs P4" },
-      { id: 5, state: "cooling", value: "Logs P5" },
-      { id: 6, state: "cold", value: "Archive P6" },
-    ]);
+    setPages(INITIAL_PAGES);
+    setMessage("Click a page to access it, or run a cooling scan.");
   };
 
   return (
     <VizContainer
       title="The Cooling Protocol"
-      description="Standard LRU cache eviction thrashes the buffer pool during sequential table scans. FrankenSQLite uses a lean HOT/COOLING/COLD state machine. Pages must survive one full 'cooling cycle' without being re-accessed before they can be evicted to disk."
+      description="LeanStore's HOT/COOLING/COLD scheme gives a page a grace period before eviction: a page that stops being used is first marked COOLING, and only COOLING pages can be evicted. FrankenSQLite has this state machine in fsqlite-btree, but the live page cache does not use it; S3-FIFO handles eviction today."
       minHeight={450}
+      status="dormant"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 justify-between gap-6 relative">
         {/* Controls */}
@@ -96,13 +143,13 @@ export default function CoolingProtocol() {
               className="px-4 py-2 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/30 hover:bg-blue-500/20 text-xs font-bold transition-all flex items-center gap-2"
             >
               <RefreshCcw className="w-3 h-3" />
-              Run Background Scan
+              Run Cooling Scan
             </button>
             <button
               onClick={fetchNewPage}
               className="px-4 py-2 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/30 hover:bg-teal-500/20 text-xs font-bold transition-all"
             >
-              Fetch New Page (Evicts Cold)
+              Fetch New Page
             </button>
           </div>
           <button
@@ -119,7 +166,9 @@ export default function CoolingProtocol() {
           <div className="flex-1 rounded-xl border border-red-500/30 bg-red-500/5 p-4 flex flex-col gap-3 relative">
             <div className="flex items-center gap-2 text-red-400 mb-2">
               <ThermometerSun className="w-5 h-5" />
-              <span className="text-[10px] font-black uppercase tracking-widest">HOT (Pinned)</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">
+                HOT (in memory, not evictable)
+              </span>
             </div>
             <div className="flex flex-wrap gap-2 content-start">
               <AnimatePresence>
@@ -130,9 +179,12 @@ export default function CoolingProtocol() {
                       layoutId={`page-${p.id}`}
                       key={p.id}
                       onClick={() => touchPage(p.id)}
-                      className="px-3 py-2 rounded border border-red-500/50 bg-red-500/20 text-red-200 text-xs font-bold cursor-pointer hover:scale-105 transition-transform"
+                      className="px-3 py-2 rounded border border-red-500/50 bg-red-500/20 text-red-200 text-xs font-bold cursor-pointer hover:scale-105 transition-transform flex items-center gap-2"
                     >
                       {p.value}
+                      <span className="font-mono text-[9px] text-red-300/70">
+                        {p.id === ROOT_ID ? "pinned" : `×${p.hits}`}
+                      </span>
                     </motion.div>
                   ))}
               </AnimatePresence>
@@ -144,7 +196,7 @@ export default function CoolingProtocol() {
             <div className="flex items-center gap-2 text-amber-400 mb-2">
               <RefreshCcw className="w-5 h-5" />
               <span className="text-[10px] font-black uppercase tracking-widest">
-                COOLING (Grace)
+                COOLING (in memory, evictable)
               </span>
             </div>
             <div className="flex flex-wrap gap-2 content-start">
@@ -171,7 +223,7 @@ export default function CoolingProtocol() {
             <div className="flex items-center gap-2 text-blue-400 mb-2">
               <ThermometerSnowflake className="w-5 h-5" />
               <span className="text-[10px] font-black uppercase tracking-widest">
-                COLD (Evictable)
+                COLD (on disk)
               </span>
             </div>
             <div className="flex flex-wrap gap-2 content-start">
@@ -196,65 +248,65 @@ export default function CoolingProtocol() {
 
         {/* Info */}
         <div className="text-xs text-slate-400 leading-relaxed max-w-2xl mx-auto text-center mt-4">
-          Click any page to simulate an access, moving it instantly back to the{" "}
-          <strong className="text-red-400">HOT</strong> state. When memory fills up, the engine only
-          evicts from the <strong className="text-blue-400">COLD</strong> pool, preventing a single
-          long table scan from flushing your entire working set. Root pages are permanently pinned
-          HOT.
+          <div className="font-mono text-[11px] text-slate-300 mb-1" aria-live="polite">
+            {message}
+          </div>
+          {resident(pages)} of {CAPACITY} frames in use. Only{" "}
+          <strong className="text-amber-400">COOLING</strong> pages are evicted, and eviction sends
+          them to <strong className="text-blue-400">COLD</strong>. The root page is pinned{" "}
+          <strong className="text-red-400">HOT</strong>.
         </div>
       </div>
 
       <VizExposition
         whatItIs={
           <>
+            <div>
+              You are looking at a toy buffer pool with five frames, run by the{" "}
+              <FrankenJargon term="cooling-protocol">cooling protocol</FrankenJargon> from LeanStore
+              (Leis et al., 2018). Each{" "}
+              <FrankenJargon term="btree">B-tree page</FrankenJargon> is{" "}
+              <strong className="text-red-400">HOT</strong> (in memory, in use),{" "}
+              <strong className="text-amber-400">COOLING</strong> (still in memory, but a candidate
+              for eviction), or <strong className="text-blue-400">COLD</strong> (on disk).
+            </div>
             <p>
-              You are looking at a simulation of FrankenSQLite&apos;s{" "}
-              <FrankenJargon term="cooling-protocol">Cooling Protocol</FrankenJargon> page cache.
-              Three zones represent the lifecycle of a{" "}
-              <FrankenJargon term="btree">B-tree page</FrankenJargon> in memory:{" "}
-              <strong className="text-red-400">Hot</strong> (recently accessed),{" "}
-              <strong className="text-amber-400">Cooling</strong> (aging, pending eviction review),
-              and <strong className="text-blue-400">Cold</strong> (eviction-eligible). This replaces
-              the standard LRU eviction policy that most databases use.
-            </p>
-            <p>
-              In a standard LRU cache, a single sequential table scan pushes every hot page out,
-              forcing the engine to re-read frequently-accessed{" "}
-              <FrankenJargon term="btree">B-tree</FrankenJargon> interior nodes from disk. The
-              Cooling Protocol prevents this by requiring pages to survive a full cooling cycle
-              before eviction.
+              The numbers on HOT pages count accesses since the last cooling scan. A scan moves HOT
+              pages with fewer than {COOLING_THRESHOLD} accesses to COOLING and resets the counters.
+              Touching a COOLING page makes it HOT again without any disk I/O.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Click any page badge to simulate an access, which instantly returns the page to the
-              Hot zone. Click <strong>Run Background Scan</strong> to advance the cooling cycle: all
-              Hot pages move to Cooling, and all Cooling pages move to Cold. Click{" "}
-              <strong>Fetch New Page</strong> to see eviction in action; only the oldest Cold page
-              is evicted to make room.
+              Click <strong>Run Cooling Scan</strong>. Users P3 (one access) cools; Users P2 (three
+              accesses) stays HOT. Click a COOLING page to re-heat it.
             </p>
             <p>
-              Notice that frequently-accessed pages never reach the Cold zone because each access
-              resets them to Hot. Sequential scan pages, by contrast, flow straight through to Cold
-              and are evicted without displacing your working set.
+              Click <strong>Fetch New Page</strong> a few times. The pool is full, so each fetch
+              evicts the oldest COOLING page to COLD. HOT pages are never chosen. When nothing is
+              COOLING, the fetch has to wait for a scan. Click a COLD page to load it back from disk.
             </p>
           </>
         }
         whyItMatters={
           <>
-            <p>
-              Mixed workloads (OLTP point queries alongside analytical scans) are where LRU caches
-              fall apart. The{" "}
-              <FrankenJargon term="cooling-protocol">Cooling Protocol</FrankenJargon> keeps your hot
-              indexes and interior <FrankenJargon term="btree">B-tree</FrankenJargon> nodes in
-              memory during scans, eliminating the latency spikes that cause p99 regressions in
-              production. Combined with{" "}
-              <FrankenJargon term="swizzle-pointer">swizzle pointers</FrankenJargon> on pinned pages
-              (which bypass the cache lookup entirely), the result is stable, predictable read
-              latency regardless of concurrent scan activity.
-            </p>
+            <div>
+              Under plain LRU, one large table scan can push every frequently used page out of the
+              cache. The cooling stage gives each page a grace period, so a page touched once by a
+              scan cools at the next scan and is evicted ahead of pages that keep getting used.
+              LeanStore pairs this with{" "}
+              <FrankenJargon term="swizzle-pointer">pointer swizzling</FrankenJargon>, where a
+              parent page holds a direct memory pointer to a resident child instead of a page
+              number that has to be looked up.
+            </div>
+            <div>
+              Where it stands: <code>CoolingStateMachine</code> and <code>SwizzlePtr</code> live in{" "}
+              <code>fsqlite-btree</code> and are covered by harness tests, but the pager does not
+              call them. The live page cache uses S3-FIFO eviction, which has a similar goal: keep
+              one-time scan pages from displacing the working set.
+            </div>
           </>
         }
       />

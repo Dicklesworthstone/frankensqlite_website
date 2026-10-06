@@ -24,8 +24,10 @@ export default function EprocessMonitor() {
   const tickRef = useRef(0);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Betting e-process from the design docs: E_t = E_{t-1} * (1 + lambda * (X_t - p0)),
+  // with X_t = 1 when the monitored event happens. Parameters match the documented config.
   const lambda = 0.5; // bet size
-  const p0 = 0.001; // expected failure rate under H0
+  const p0 = 0.001; // null hypothesis: events occur at most 0.1% of the time
   const threshold = 20; // 1/alpha (alpha = 0.05)
 
   useEffect(() => {
@@ -37,22 +39,13 @@ export default function EprocessMonitor() {
     intervalRef.current = setInterval(() => {
       tickRef.current += 1;
 
-      // Simulate an invariant check
-      // We will force a cluster of violations to show the exponential explosion
-      const isViolation = tickRef.current > 40 && Math.random() > 0.6;
+      // Clean stream for the first 40 observations, then events at a 40% rate,
+      // far above the 0.1% the null hypothesis allows.
+      const isViolation = tickRef.current > 40 && Math.random() < 0.4;
 
       setEValue((prevE) => {
-        let newE = prevE;
-        if (isViolation) {
-          // Under H1 (violation): E grows exponentially
-          newE = prevE * (1 + (lambda * (1 - p0)) / p0);
-        } else {
-          // Under H0 (normal): E drifts slightly down or stays flat
-          newE = prevE * (1 - lambda);
-        }
-
-        // Floor it at a tiny value so the chart doesn't look completely dead
-        newE = Math.max(0.1, newE);
+        const x = isViolation ? 1 : 0;
+        const newE = prevE * (1 + lambda * (x - p0));
 
         if (newE >= threshold) {
           setHasFailed(true);
@@ -89,8 +82,9 @@ export default function EprocessMonitor() {
   return (
     <VizContainer
       title="Anytime-Valid E-Processes"
-      description="Database engines run continuously, so traditional fixed-sample statistics don't work for catching rare bugs. FrankenSQLite monitors its MVCC invariants in real-time using mathematical martingales. If a subtle concurrency bug occurs, the E-Process value explodes exponentially, triggering a statistically rigorous alert instantly."
+      description="An e-process is a running bet against a null hypothesis such as 'this event happens at most 0.1% of the time'. You can check it after every observation and still keep the false-alarm rate below α. FrankenSQLite uses e-processes in a few narrow places: a per-connection load-shedding signal, an opt-in experimental commit gate, and test-harness monitors."
       minHeight={450}
+      status="partial"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 gap-6 relative justify-between">
         {/* Header Controls */}
@@ -116,13 +110,13 @@ export default function EprocessMonitor() {
             {hasFailed
               ? "Reset Monitor"
               : isSimulating
-                ? "Pause Simulator"
+                ? "Pause Simulation"
                 : "Run E-Process Monitor"}
           </button>
 
           <div className="flex gap-4 font-mono text-[10px] text-slate-500">
             <div className="flex flex-col items-end">
-              <span>E_0 = 1</span>
+              <span>E_0 = 1, λ = 0.5</span>
               <span>p_0 = 0.001</span>
             </div>
             <div className="flex flex-col items-end">
@@ -176,14 +170,14 @@ export default function EprocessMonitor() {
             <ShieldCheck className="w-5 h-5 text-teal-400 shrink-0 mt-0.5" />
             <div>
               <div className="text-[10px] font-black uppercase tracking-widest text-white mb-1">
-                Under H_0 (System is Healthy)
+                Under H_0 (event rate ≤ p_0)
               </div>
               <div className="text-[10px] text-slate-400 leading-relaxed font-mono">
                 E[E_t | F_{"{t-1}"}] ≤ E_{"{t-1}"}
                 <br />
-                The <FrankenJargon term="e-process">e-process</FrankenJargon> behaves as a
-                supermartingale. It drifts downwards or stays near 1. Millions of operations can
-                pass without triggering a false alarm.
+                The <FrankenJargon term="e-process">e-process</FrankenJargon> is a
+                supermartingale: on average it does not grow. Each clean observation shrinks it
+                slightly (×0.9995 here).
               </div>
             </div>
           </div>
@@ -191,12 +185,13 @@ export default function EprocessMonitor() {
             <ShieldAlert className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
             <div>
               <div className="text-[10px] font-black uppercase tracking-widest text-white mb-1">
-                Under H_1 (Bug Detected)
+                Events Arrive Too Often
               </div>
               <p className="text-[10px] text-slate-400 leading-relaxed font-mono">
                 P_{"{H_0}"}(∃t : E_t ≥ 1/α) ≤ α<br />
-                When actual violations occur, the mathematical bet wins, and the value explodes
-                exponentially via Ville&apos;s inequality, stopping the system immediately.
+                Each event multiplies E_t by about 1.5. Several close together carry it past 1/α
+                and H_0 is rejected. By Ville&apos;s inequality a false alarm has probability at
+                most α = 5%, not zero.
               </p>
             </div>
           </div>
@@ -207,48 +202,52 @@ export default function EprocessMonitor() {
         whatItIs={
           <>
             <div>
-              You are looking at a live data stream of an{" "}
-              <FrankenJargon term="e-process">E-Process Monitor</FrankenJargon>. It is a statistical
-              engine continuously evaluating the health of the database&apos;s internal memory
-              invariants.
+              You are looking at a simulated{" "}
+              <FrankenJargon term="e-process">e-process</FrankenJargon> watching a stream of yes/no
+              observations, for example &ldquo;was this abort a false positive?&rdquo;. The null
+              hypothesis H_0 says the event happens at most 0.1% of the time.
             </div>
             <p>
-              The small bars at the bottom represent individual transactions (green = normal, red =
-              violation). The glowing fill area represents the mathematical &ldquo;E-Value&rdquo;,
-              which starts at 1 and grows or shrinks in response to observed events. The dashed red
-              line near the top is the rejection threshold.
+              The bars along the bottom are observations (grey = no event, red = event). The filled
+              area is the e-value E_t, which starts at 1. The dashed line is the rejection threshold
+              1/α = 20.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Click <strong>Run E-Process Monitor</strong>. Under normal operation (H_0), the system
-              is healthy. Because the E-Process is mathematically a supermartingale, the E-Value
-              drifts downwards or stays flat near 1, even after millions of operations.
+              Click <strong>Run E-Process Monitor</strong>. For the first 40 observations nothing
+              happens and E_t edges down from 1.
             </p>
             <p>
-              Suddenly, a cluster of red anomalies (simulating a rare concurrency bug) will trigger.
-              Watch what happens to the E-Value: it explodes exponentially. It instantly crosses the{" "}
-              <code>1/α</code> threshold, triggering a mathematically rigorous alert.
+              Then events start arriving at about 40%, far above what H_0 allows. Each one raises
+              E_t by roughly half, and after several of them it crosses 20 and the monitor rejects
+              H_0. Reset and run it again: the crossing time varies with the random stream.
             </p>
           </>
         }
         whyItMatters={
           <>
             <div>
-              Fixed-sample unit tests cannot catch concurrency bugs that manifest only under
-              specific timing conditions, sometimes once in ten million operations. Traditional
-              statistical tests also require a predetermined sample size, which is impossible for a
-              continuously running server.
+              A classical test fixes its sample size in advance; peeking after every observation
+              inflates the false-alarm rate. An{" "}
+              <FrankenJargon term="e-process">e-process</FrankenJargon> can be checked continuously
+              and still keeps false alarms below α, provided the null model is valid. It is
+              evidence about a rate, not a proof that the system is correct.
             </div>
             <div>
-              <FrankenJargon term="e-process">E-Processes</FrankenJargon> provide anytime-valid
-              confidence intervals. By monitoring{" "}
-              <FrankenJargon term="snapshot-isolation">snapshot isolation</FrankenJargon> invariants
-              constantly in production, FrankenSQLite can prove the safety of its{" "}
-              <FrankenJargon term="mvcc">MVCC</FrankenJargon> engine, catching rare bugs in
-              milliseconds without generating false positives.
+              Where FrankenSQLite uses them: each connection keeps a small e-process, updated every
+              64 statements from the write-conflict abort rate, page-cache miss ratio and cache
+              pressure. When it crosses its threshold it can cancel work explicitly given a
+              priority above 1; ordinary statements run at priority 0, so by default it only
+              records. An experimental mode (<code>PRAGMA fsqlite.write_merge = LAB_UNSAFE</code>,
+              off by default) uses an e-process to decide when to skip{" "}
+              <FrankenJargon term="ssi">SSI</FrankenJargon> validation. The test harness uses
+              e-processes for the SSI false-positive abort rate and conformance drift; there, hard{" "}
+              <FrankenJargon term="mvcc">MVCC</FrankenJargon> invariant violations, such as two
+              transactions holding the same page lock, count as immediate failures instead of being
+              left to statistics.
             </div>
           </>
         }

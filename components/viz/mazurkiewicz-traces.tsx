@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence, motion } from "framer-motion";
-import { CheckCircle2, Compass } from "lucide-react";
+import { CheckCircle2, Compass, Shuffle } from "lucide-react";
 import { useState } from "react";
 import { FrankenJargon } from "@/components/franken-jargon";
 import VizContainer from "./viz-container";
@@ -17,8 +17,9 @@ export default function MazurkiewiczTraces() {
   return (
     <VizContainer
       title="Mazurkiewicz Traces + DPOR"
-      description="Testing concurrent code by running random thread interleavings is like trying random codes on a padlock. You&apos;ll probably never find the bug. FrankenSQLite uses Mazurkiewicz traces to mathematically group equivalent schedules, achieving exhaustive concurrency verification."
+      description="Schedules that differ only in the order of independent steps behave the same. Mazurkiewicz traces group them into equivalence classes, so a checker can test one schedule per class instead of every interleaving. FrankenSQLite's test harness does this for small models of concurrent transactions; the results hold for the modeled steps and the bounds of each test."
       minHeight={450}
+      status="harness"
     >
       <div className="flex flex-col h-full bg-[#050505] p-4 md:p-6 justify-between gap-6 relative">
         <div className="flex justify-center gap-2 mb-4">
@@ -45,11 +46,12 @@ export default function MazurkiewiczTraces() {
                 exit={{ opacity: 0 }}
                 className="flex flex-col items-center gap-4 text-center"
               >
-                <div className="text-4xl">🤯</div>
-                <div className="text-xl font-black text-white font-mono">10,000,000+</div>
+                <Shuffle className="w-8 h-8 text-slate-500" />
+                <div className="text-xl font-black text-white font-mono">20</div>
                 <div className="text-xs text-slate-400 max-w-xs">
-                  Possible thread interleavings for just 3 transactions. Fuzzing or random sleep
-                  injection will only ever test a tiny fraction of the state space.
+                  Ways to interleave two transactions of three steps each (T1: read P1, write P2,
+                  commit. T2: read P3, write P4, commit). A third such transaction raises the count
+                  to 1,680. Random scheduling only samples some of them.
                 </div>
               </motion.div>
             )}
@@ -81,8 +83,9 @@ export default function MazurkiewiczTraces() {
                 </div>
 
                 <p className="text-[11px] text-slate-400 text-center">
-                  Because they don&apos;t interact, swapping their order does not change the
-                  database state. This is an <b>Independence Relation</b>.
+                  They touch different pages, so swapping them does not change what either
+                  transaction sees. Pairs like this make up the <b>independence relation</b>. A read
+                  and a write of the same page, two commits, or two BEGINs do depend on order.
                 </p>
               </motion.div>
             )}
@@ -100,20 +103,22 @@ export default function MazurkiewiczTraces() {
                   <div className="w-32 h-32 rounded-full border-2 border-dashed border-teal-500/50 bg-teal-500/10 flex items-center justify-center flex-col relative group">
                     <span className="text-2xl font-black text-teal-500/30">1</span>
                     <span className="text-[10px] font-bold text-teal-400 absolute bottom-4">
-                      Class Alpha
+                      T1 commits first
                     </span>
                   </div>
                   <div className="w-32 h-32 rounded-full border-2 border-dashed border-purple-500/50 bg-purple-500/10 flex items-center justify-center flex-col relative group">
                     <span className="text-2xl font-black text-purple-500/30">2</span>
                     <span className="text-[10px] font-bold text-purple-400 absolute bottom-4">
-                      Class Beta
+                      T2 commits first
                     </span>
                   </div>
                 </div>
                 <div className="text-[11px] text-slate-400 max-w-sm text-center">
-                  A <FrankenJargon term="mazurkiewicz-trace">Mazurkiewicz Trace</FrankenJargon>{" "}
-                  groups millions of interleavings into a single equivalence class. If we prove one
-                  path in the class is safe, we have mathematically proven all of them are safe.
+                  In this example the only steps that depend on each other are the two commits, so
+                  the 20 interleavings fall into 2{" "}
+                  <FrankenJargon term="mazurkiewicz-trace">Mazurkiewicz traces</FrankenJargon>, one
+                  per commit order. Every schedule in a class behaves the same under the modeled
+                  independence relation.
                 </div>
               </motion.div>
             )}
@@ -128,22 +133,23 @@ export default function MazurkiewiczTraces() {
               >
                 <div className="flex flex-col gap-2 w-full max-w-xs">
                   <div className="flex items-center justify-between p-2 rounded bg-teal-500/20 border border-teal-500/50 text-teal-400 text-[10px] font-bold">
-                    <span>Test Canonical Path (Class 1)</span>
+                    <span>Check one schedule (T1 commits first)</span>
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                   <div className="flex items-center justify-between p-2 rounded bg-purple-500/20 border border-purple-500/50 text-purple-400 text-[10px] font-bold">
-                    <span>Test Canonical Path (Class 2)</span>
+                    <span>Check one schedule (T2 commits first)</span>
                     <CheckCircle2 className="w-4 h-4" />
                   </div>
                   <div className="flex items-center justify-between p-2 rounded bg-slate-800 border border-slate-700 text-slate-500 text-[10px] font-bold">
-                    <span>Prune 9,999,998 redundant paths</span>
+                    <span>Skip 18 equivalent interleavings</span>
                     <Compass className="w-4 h-4" />
                   </div>
                 </div>
                 <div className="text-[11px] text-slate-300 max-w-sm text-center">
-                  Dynamic Partial Order Reduction (<FrankenJargon term="dpor">DPOR</FrankenJargon>)
-                  executes exactly one representative from each trace class. Exhaustive proof
-                  without combinatorial explosion.
+                  Partial order reduction (<FrankenJargon term="dpor">DPOR</FrankenJargon> is the
+                  dynamic version) checks one schedule per class: 2 checks instead of 20 here. With
+                  many conflicting steps there are many classes, so the work can still grow
+                  quickly.
                 </div>
               </motion.div>
             )}
@@ -182,48 +188,51 @@ export default function MazurkiewiczTraces() {
         whatItIs={
           <>
             <p>
-              This is a step-by-step explainer of how FrankenSQLite mathematically proves its
-              concurrency engine is safe, without falling victim to combinatorial explosion.
+              This is a step-by-step walk through one small example: how equivalent schedules are
+              grouped, and why a checker only needs one schedule from each group. The example and
+              its counts (20 interleavings, 2 classes) come from a test in FrankenSQLite&apos;s
+              harness.
             </p>
           </>
         }
         howToUse={
           <>
             <p>
-              Click <strong>Next</strong>. The first step shows the problem: 3 transactions have
-              10,000,000+ possible ways their instructions could interleave. Fuzzing will never
-              catch them all.
+              Click <strong>Next</strong>. Two transactions with three steps each can interleave in
+              20 ways. The count multiplies quickly as transactions and steps are added.
             </p>
             <p>
-              Click <strong>Next</strong> again. We define an &ldquo;Independence Relation&rdquo;.
-              Since reading Page 5 and reading Page 9 do not interact, executing A then B produces
-              the exact same database state as executing B then A.
+              Click <strong>Next</strong> again. Some pairs of steps are independent: reading page
+              5 and reading page 9 give the same result in either order.
             </p>
             <div>
-              Click <strong>Next</strong>. By mathematically grouping these equivalent paths, we
-              create <FrankenJargon term="mazurkiewicz-trace">Mazurkiewicz Traces</FrankenJargon>{" "}
-              (equivalence classes). We don&apos;t need to test every path; we only need to test one
-              canonical representative per class!
+              Click <strong>Next</strong>. Swapping independent neighbors turns one schedule into
+              another equivalent one. The resulting groups are{" "}
+              <FrankenJargon term="mazurkiewicz-trace">Mazurkiewicz traces</FrankenJargon>. Here
+              only the commit order matters, so there are two.
             </div>
             <div>
-              Click <strong>Next</strong>. The engine uses{" "}
-              <FrankenJargon term="dpor">Dynamic Partial Order Reduction (DPOR)</FrankenJargon> to
-              test only the 2 canonical paths, instantly pruning 9,999,998 redundant ones.
+              Click <strong>Next</strong>. The checker runs one schedule per class and skips the
+              other 18, which by construction behave like one of those two.
             </div>
           </>
         }
         whyItMatters={
           <>
             <div>
-              Writing multi-threaded database engines is notoriously difficult because race
-              conditions are impractical to test via random fuzzing. The probability of hitting the
-              one fatal schedule by chance is vanishingly low.
+              Concurrency bugs often hide in one rare ordering. Grouping equivalent schedules lets
+              a test cover every distinct ordering of a small scenario instead of hoping random
+              runs hit the bad one.
             </div>
             <div>
-              By applying <FrankenJargon term="mazurkiewicz-trace">trace theory</FrankenJargon> and{" "}
-              <FrankenJargon term="dpor">DPOR</FrankenJargon> in its automated test harness,
-              FrankenSQLite explores the entire theoretical state space, achieving mathematically
-              proven confidence in its <FrankenJargon term="mvcc">MVCC</FrankenJargon> design.
+              Where it stands: this lives in the test harness, not the database runtime.{" "}
+              <code>fsqlite-harness</code> models transactions as begin/read/write/commit steps,
+              puts each schedule into a canonical (Foata) form, and checks one representative per
+              class against <FrankenJargon term="mvcc">MVCC</FrankenJargon> invariants. For some
+              concurrent data structures it also runs the asupersync lab runtime&apos;s{" "}
+              <FrankenJargon term="dpor">DPOR</FrankenJargon> explorer with a step limit. Coverage
+              is complete only for the modeled steps and bounds of each test, and only if the
+              independence relation is right.
             </div>
           </>
         }

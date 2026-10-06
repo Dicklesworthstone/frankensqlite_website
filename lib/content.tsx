@@ -310,9 +310,9 @@ export const statusBoard: StatusGroup[] = [
           "XChaCha20-Poly1305 with Argon2id key wrapping lives in fsqlite-pager. No PRAGMA key/rekey dispatch yet.",
       },
       {
-        name: "Research code in fsqlite-btree",
+        name: "Research code",
         detail:
-          "Learned indexes, database cracking, a cooling-stage cache protocol and pointer swizzling. Implemented and tested; nothing in the query path calls them.",
+          "Learned indexes, database cracking, a cooling-stage cache protocol and pointer swizzling in fsqlite-btree, plus an ARC cache policy and BOCPD workload detection. Implemented and tested; the runtime doesn't call them.",
       },
       {
         name: "Vectorized operators",
@@ -871,7 +871,7 @@ export const architectureLayers: ArchitectureLayer[] = [
     description: (
       <>
         The VFS talks to the OS. The pager caches pages with S3-FIFO eviction (an{" "}
-        <FrankenJargon term="arc-cache">ARC</FrankenJargon> policy is available through its API)
+        <FrankenJargon term="arc-cache">ARC</FrankenJargon> policy is implemented but not exposed)
         and manages the rollback journal. The <FrankenJargon term="wal" /> crate handles frames, checkpoints and the shared
         WAL index. <FrankenJargon term="mvcc" /> keeps per-page versions and runs SSI validation.
         The B-tree crate lays out cells, splits pages and walks cursors.

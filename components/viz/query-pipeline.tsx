@@ -18,16 +18,16 @@ interface LayerDef {
 }
 
 const LAYERS: LayerDef[] = [
-  { name: "Parser", crates: ["fsqlite-parser", "fsqlite-ast"], color: "#38bdf8" },
-  { name: "Planner", crates: ["fsqlite-planner"], color: "#a78bfa" },
-  { name: "VDBE Compiler", crates: ["fsqlite-vdbe"], color: "#f472b6" },
+  { name: "Parse", crates: ["fsqlite-parser", "fsqlite-ast"], color: "#38bdf8" },
+  { name: "Compile", crates: ["fsqlite-core", "fsqlite-vdbe::codegen"], color: "#a78bfa" },
+  { name: "Execute", crates: ["fsqlite-vdbe::engine"], color: "#f472b6" },
   {
-    name: "B-tree + MVCC",
+    name: "B-tree + Pager + MVCC",
     crates: ["fsqlite-btree", "fsqlite-pager", "fsqlite-mvcc"],
     color: "#fb923c",
   },
-  { name: "Storage", crates: ["fsqlite-wal", "fsqlite-vfs"], color: "#34d399" },
-  { name: "Result", crates: ["fsqlite", "fsqlite-core"], color: "#14b8a6" },
+  { name: "WAL + VFS", crates: ["fsqlite-wal", "fsqlite-vfs"], color: "#34d399" },
+  { name: "Result Row", crates: ["fsqlite-core", "fsqlite"], color: "#14b8a6" },
 ];
 
 interface StepData {
@@ -38,112 +38,133 @@ interface StepData {
   highlight?: string;
 }
 
+const AST_TEXT =
+  "SelectStatement\n  \u251c\u2500 columns: *\n  \u251c\u2500 from: users\n  \u2514\u2500 where: id = 42";
+
+/**
+ * Simplified version of what fsqlite-vdbe's codegen emits for a rowid
+ * equality lookup (`codegen_select_rowid_lookup`). Register numbers are
+ * illustrative.
+ */
+const BYTECODE_TEXT = [
+  "0  Init",
+  "1  Transaction  read",
+  "2  Integer      42 \u2192 r4",
+  "3  OpenRead     c0, users",
+  "4  SeekRowid    c0, r4  miss \u2192 9",
+  "5  Rowid        c0 \u2192 r1",
+  "6  Column       c0, 1 \u2192 r2",
+  "7  Column       c0, 2 \u2192 r3",
+  "8  ResultRow    r1..r3",
+  "9  Close        c0",
+  "10 Halt",
+].join("\n");
+
 const STEP_DATA: StepData[] = [
   {
     activeLayer: -1,
     input: { label: "SQL Query", content: "SELECT * FROM users WHERE id = 42" },
-    output: { label: "Ready", content: "Query submitted to FrankenSQLite engine" },
+    output: { label: "Call", content: "conn.query(sql) on an fsqlite::Connection" },
   },
   {
     activeLayer: 0,
     input: { label: "Raw SQL", content: "SELECT * FROM users WHERE id = 42" },
-    output: {
-      label: "AST",
-      content: "SELECT\n  \u251c\u2500 FROM \u2192 users\n  \u2514\u2500 WHERE \u2192 id = 42",
-    },
+    output: { label: "AST", content: AST_TEXT },
   },
   {
     activeLayer: 1,
-    input: {
-      label: "AST",
-      content: "SELECT\n  \u251c\u2500 FROM \u2192 users\n  \u2514\u2500 WHERE \u2192 id = 42",
-    },
-    output: {
-      label: "Query Plan",
-      content: "Index Seek on users.id = 42\ncost: 3  rows: 1",
-    },
+    input: { label: "AST", content: AST_TEXT },
+    output: { label: "Bytecode (simplified)", content: BYTECODE_TEXT },
+    highlight:
+      "id is the rowid, so codegen emits SeekRowid, not an index seek. fsqlite-planner can hint the access path for simple single-table SELECTs, but codegen decides.",
   },
   {
     activeLayer: 2,
     input: {
-      label: "Plan",
-      content: "Index Seek on users.id = 42",
+      label: "Bytecode",
+      content: "Integer   42 \u2192 r4\nSeekRowid c0, r4",
     },
     output: {
-      label: "Bytecode",
-      content: "OpenRead  0\nSeekEq    0, 42\nColumn    0, 1\nResultRow",
+      label: "Cursor Call",
+      content: "c0.table_move_to(42)\nfound   \u2192 continue at Rowid\nmissing \u2192 jump to Close, Halt",
     },
+    highlight: "Interpreted by VdbeEngine. The pattern JIT is off by default.",
   },
   {
     activeLayer: 3,
     input: {
-      label: "Bytecode",
-      content: "SeekEq 0, 42",
+      label: "Cursor Seek",
+      content: "rowid 42 in the users table B-tree",
     },
     output: {
-      label: "Page Read",
-      content: "root \u2192 internal \u2192 leaf\npage #1204 offset 0x2F0",
+      label: "Page Path",
+      content: "root p.2 \u2192 interior p.17 \u2192 leaf p.1204\ncell for rowid 42 at offset 0x2F0",
     },
-    highlight: "MVCC visibility check: commit_seq \u2264 snapshot.high",
+    highlight: "MVCC visibility: a page version is visible if commit_seq \u2264 snapshot.high",
   },
   {
     activeLayer: 4,
     input: {
-      label: "Page Req",
-      content: "Read page #1204",
+      label: "Page Request",
+      content: "page 1204 (page-cache miss)",
     },
     output: {
-      label: "Raw Bytes",
-      content: "WAL check \u2192 disk read\nchecksum: 0xA3F1..9C2E",
+      label: "Page Source",
+      content: "WAL page index lookup\n  hit  \u2192 frame from app.db-wal\n  miss \u2192 page from app.db",
     },
-    highlight: "RaptorQ integrity verified",
+    highlight:
+      "WAL frames carry SQLite's checksum chain, checked when frames are indexed, not on every read. RaptorQ is not on the read path.",
   },
   {
     activeLayer: 5,
     input: {
-      label: "Bytes",
-      content: "0x00 0x2A 0x05 Alice ...",
+      label: "Leaf Cell",
+      content: "rowid: 42\nrecord: NULL, 'Alice', 'alice@example.com'",
     },
     output: {
-      label: "Result Row",
-      content: "{ id: 42,\n  name: 'Alice',\n  email: 'alice@example.com' }",
+      label: "Row",
+      content: 'Row [\n  Integer(42),\n  Text("Alice"),\n  Text("alice@example.com") ]',
     },
+    highlight:
+      "SQLite's record format: the rowid-alias column is stored as NULL and Rowid supplies 42.",
   },
 ];
 
 const STEPS: Step[] = [
   {
     label: "Query Input",
-    description: "A SQL query is submitted to the FrankenSQLite engine for execution.",
-  },
-  {
-    label: "Parser Layer",
     description:
-      "The raw SQL string is tokenized and parsed into an Abstract Syntax Tree by fsqlite-parser and fsqlite-ast.",
+      "The app calls conn.query() on an fsqlite::Connection. In this example, users declares id INTEGER PRIMARY KEY, so id is the table's rowid.",
   },
   {
-    label: "Planner Layer",
+    label: "Parse",
     description:
-      "fsqlite-planner analyzes the AST, selects indexes, and produces an optimized query plan.",
+      "fsqlite-parser's hand-written parser turns the SQL text into a typed SelectStatement from fsqlite-ast.",
   },
   {
-    label: "VDBE Compiler",
-    description: "The query plan is compiled into VDBE bytecode opcodes by fsqlite-vdbe.",
-  },
-  {
-    label: "B-tree + MVCC",
+    label: "Compile",
     description:
-      "fsqlite-btree traverses the B-tree using the bytecode. fsqlite-mvcc ensures snapshot isolation.",
+      "fsqlite-core hands the statement to fsqlite-vdbe's codegen, which picks the access path and emits bytecode. Some CTE, view, join and window shapes still run through a compatibility executor instead.",
   },
   {
-    label: "Storage",
+    label: "Execute",
     description:
-      "fsqlite-wal checks the write-ahead log, fsqlite-vfs reads from disk. RaptorQ verifies integrity.",
+      "The register-based VM runs the program. SeekRowid moves the table cursor to rowid 42. If no row has that rowid, it jumps to Close and Halt and the query returns no rows.",
   },
   {
-    label: "Result",
+    label: "B-tree + Pager + MVCC",
     description:
-      "fsqlite-core assembles raw bytes into the final result row returned to the caller.",
+      "fsqlite-btree descends from the root page to the leaf that holds rowid 42. fsqlite-pager supplies each page, and fsqlite-mvcc picks the newest version committed at or before this read's snapshot.",
+  },
+  {
+    label: "WAL + VFS",
+    description:
+      "On a page-cache miss, the pager looks for the newest visible WAL frame of that page. If there is one, fsqlite-wal reads it from the -wal file. Otherwise the page comes from the main database file. Both reads go through fsqlite-vfs.",
+  },
+  {
+    label: "Result Row",
+    description:
+      "Rowid and Column decode the leaf cell into registers and ResultRow emits them. fsqlite-core collects them into a Row of SqliteValue values, which the fsqlite facade returns.",
   },
 ];
 
@@ -351,6 +372,9 @@ function QueryInputBlock() {
       <div className="text-[9px] font-black uppercase tracking-[0.2em] text-teal-500 mb-2">
         SQL Query
       </div>
+      <pre className="text-[11px] font-mono text-slate-500 leading-relaxed whitespace-pre-wrap break-words mb-1">
+        {"-- users(id INTEGER PRIMARY KEY, name TEXT, email TEXT)"}
+      </pre>
       <pre className="text-sm md:text-base font-mono text-teal-300 leading-relaxed">
         <span className="text-slate-500">{">"}</span> <span className="text-sky-400">SELECT</span>{" "}
         <span className="text-slate-300">*</span> <span className="text-sky-400">FROM</span>{" "}
@@ -378,8 +402,9 @@ export default function QueryPipeline() {
   return (
     <VizContainer
       title="Query Pipeline Flythrough"
-      description="Watch a SQL query flow through FrankenSQLite's 6 architectural layers and 26-crate pipeline, from raw SQL to result row."
+      description="Follow one point lookup through the live engine, from SQL text to the returned row."
       minHeight={480}
+      status="live"
     >
       <div className="p-3 md:p-6 flex flex-col gap-4">
         {/* Query input banner (visible on step 0) */}
@@ -415,6 +440,10 @@ export default function QueryPipeline() {
           ))}
         </div>
 
+        <p className="text-[10px] font-mono text-slate-600">
+          Page numbers, offsets and register numbers are illustrative.
+        </p>
+
         {/* Stepper controls */}
         <div className="mt-2">
           <Stepper
@@ -430,42 +459,48 @@ export default function QueryPipeline() {
         whatItIs={
           <>
             <p>
-              You are watching the exact execution pipeline of a single SQL query as it flows from
-              raw text down to physical disk bytes and back up again.
+              One read query, <code>SELECT * FROM users WHERE id = 42</code>, followed from SQL
+              text down to page reads and back up to a returned row. The table declares{" "}
+              <code>id INTEGER PRIMARY KEY</code>, so <code>id</code> is the rowid.
             </p>
             <p>
-              FrankenSQLite is not a monolith. It is composed of 26 independent Rust crates
-              organized into strictly defined architectural layers.
+              Each band is one stage of the live engine, labeled with the crates that do the work.
+              The workspace has 28 crates (26 published). The bands show the ten main crates on
+              this query&apos;s path.
             </p>
           </>
         }
         howToUse={
           <>
-            <p>Follow the animation through the 6 stages.</p>
-            <p>
-              First, the raw text is parsed into an Abstract Syntax Tree (AST). The Query Planner
-              analyzes this AST and compiles it into an imperative Bytecode program.
-            </p>
+            <p>Press play, or step through the six stages.</p>
             <div>
-              The <FrankenJargon term="vdbe">VDBE</FrankenJargon> virtual machine executes this
-              bytecode, calling into the <FrankenJargon term="btree">B-Tree</FrankenJargon> storage
-              layer. The B-Tree requests pages from the Pager, which finally translates those into
-              raw 4KB byte arrays fetched from the VFS (Virtual File System).
+              At Compile, look at the bytecode. Because <code>id</code> is the rowid, the{" "}
+              <FrankenJargon term="vdbe">VDBE</FrankenJargon> program uses <code>SeekRowid</code>{" "}
+              instead of an index seek. A miss jumps straight to <code>Close</code> and{" "}
+              <code>Halt</code>, so a missing id returns zero rows.
+            </div>
+            <div>
+              In the storage stages, the <FrankenJargon term="btree">B-tree</FrankenJargon> asks
+              the pager for pages. <FrankenJargon term="mvcc">MVCC</FrankenJargon> picks the
+              version this read&apos;s snapshot may see. On a cache miss, the{" "}
+              <FrankenJargon term="wal">WAL</FrankenJargon> is checked for a newer frame before the
+              main file is read.
             </div>
           </>
         }
         whyItMatters={
           <>
             <p>
-              Legacy C SQLite is notoriously monolithic, making it incredibly difficult to modify or
-              test specific components in isolation.
+              C SQLite has the same layers inside one C library: parser, code generator, VDBE,
+              B-tree, pager and OS layer. FrankenSQLite keeps that layering and splits it into Rust
+              crates. It also keeps SQLite&apos;s file format, so stock sqlite3 can open the
+              databases it writes.
             </p>
-            <div>
-              Because FrankenSQLite uses a strict workspace of 26 decoupled crates, it is inherently
-              composable. You can swap out the VFS to write to S3, or you can drop the SQL parser
-              entirely and use the <FrankenJargon term="mvcc">MVCC</FrankenJargon> B-Tree directly
-              as a high-performance embedded key-value store.
-            </div>
+            <p>
+              The pipeline also shows what is unfinished. The separate fsqlite-planner crate is
+              substantial but is not yet the main compile path, and some CTE, view, join and window
+              queries still run through a compatibility executor instead of VDBE codegen.
+            </p>
           </>
         }
       />

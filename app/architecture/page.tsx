@@ -45,6 +45,7 @@ const DatabaseCracking = dynamic(() => import("@/components/viz/database-crackin
 const CoolingProtocol = dynamic(() => import("@/components/viz/cooling-protocol"), {
   ssr: false,
 });
+const QueryPipeline = dynamic(() => import("@/components/viz/query-pipeline"), { ssr: false });
 
 const iconMap: Record<string, typeof Cpu> = {
   layers: Layers,
@@ -57,6 +58,7 @@ const iconMap: Record<string, typeof Cpu> = {
 
 /** Where each topic on this page stands in the engine (see engineSnapshot). */
 const STATUS = {
+  queryPath: "live",
   mvcc: "live",
   timeTravel: "partial",
   commitPath: "live",
@@ -218,10 +220,22 @@ export default function ArchitecturePage() {
       {/* ================================================================
           CONCURRENCY
           ================================================================ */}
-      <GroupDivider eyebrow="Running today" title="Concurrency">
-        The part of FrankenSQLite that is both new and live: many writers in one process, with
+      <GroupDivider eyebrow="Running today" title="The Live Engine">
+        What runs when you call <code>execute</code> today: the query path through the crates, and
+        the part of FrankenSQLite that is both new and live, many writers in one process with
         serializable isolation.
       </GroupDivider>
+
+      <Topic id="query-path" title="From SQL to a Row" status={STATUS.queryPath}>
+        <Prose last>
+          One point lookup, followed through the workspace. The parser builds an AST, code
+          generation in <code>fsqlite-core</code> and <code>fsqlite-vdbe</code> picks the access
+          path and emits bytecode, the VM walks the B-tree through the pager and MVCC visibility
+          rules, and the WAL layer decides whether the newest copy of a page is in the log or the
+          main file. Step through it below.
+        </Prose>
+        <QueryPipeline />
+      </Topic>
 
       <Topic id="mvcc" title="MVCC, Page by Page" status={STATUS.mvcc}>
         <div className="grid gap-6 md:grid-cols-2 mb-12">

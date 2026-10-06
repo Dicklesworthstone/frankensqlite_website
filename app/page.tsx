@@ -208,6 +208,14 @@ export default function HomePage() {
                   </a>
                 </Magnetic>
               </div>
+
+              <a
+                href="#status"
+                className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-teal-300 transition-colors"
+              >
+                Pre-1.0. See what works today and what&apos;s still in progress
+                <ArrowRight className="h-4 w-4" />
+              </a>
             </div>
 
             {/* Right column — Frankenstein illustration */}

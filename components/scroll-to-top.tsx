@@ -1,8 +1,9 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ArrowUp } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
 const CIRCLE_RADIUS = 20;
 const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
@@ -10,7 +11,7 @@ const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 export default function ScrollToTop() {
   const [isVisible, setIsVisible] = useState(false);
   const [progress, setProgress] = useState(0);
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const handleScroll = useCallback(() => {
     const scrollY = window.scrollY;

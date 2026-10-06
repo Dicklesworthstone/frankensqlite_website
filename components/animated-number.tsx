@@ -1,7 +1,7 @@
 "use client";
 
-import { useReducedMotion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
 interface AnimatedNumberProps {
   value: number;
@@ -22,7 +22,7 @@ export function AnimatedNumber({
   decimals,
   className,
 }: AnimatedNumberProps) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [count, setCount] = useState(0);
   const [hasAnimated, setHasAnimated] = useState(false);
   const frameRef = useRef<number | null>(null);

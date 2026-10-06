@@ -1,8 +1,9 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { FrankenContainer } from "@/components/franken-elements";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { architectureLayers } from "@/lib/content";
 
 /* ------------------------------------------------------------------ */
@@ -132,7 +133,7 @@ const GRID_H = Array.from({ length: Math.floor(VB_H / 40) + 1 }, (_, i) => i * 4
 /* ------------------------------------------------------------------ */
 export default function FrankenMermaidDiagram() {
   const [hovered, setHovered] = useState<number | null>(null);
-  const prefRM = useReducedMotion();
+  const prefRM = usePrefersReducedMotion();
   const dur = prefRM ? 0 : 0.25;
 
   const layers = useMemo(() => computeLayout(), []);

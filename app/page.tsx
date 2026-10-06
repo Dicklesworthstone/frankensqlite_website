@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Activity, ArrowRight, ExternalLink, Github, Layers, Package, Rocket } from "lucide-react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -18,6 +18,7 @@ import SectionShell from "@/components/section-shell";
 import StatsGrid from "@/components/stats-grid";
 import Timeline from "@/components/timeline";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import {
   buildStory,
   changelog,
@@ -137,7 +138,7 @@ const FrankenFlywheel = dynamic(() => import("@/components/franken-flywheel"), {
 });
 
 export default function HomePage() {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   return (
     <main id="main-content">
       {/* ================================================================

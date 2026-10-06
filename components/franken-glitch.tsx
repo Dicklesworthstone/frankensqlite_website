@@ -1,7 +1,8 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 
 interface FrankenGlitchProps {
@@ -17,7 +18,7 @@ export default function FrankenGlitch({
   trigger = "hover",
   intensity = "medium",
 }: FrankenGlitchProps) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [isHovered, setIsHovered] = useState(false);
   const [isRandomGlitching, setIsRandomGlitching] = useState(false);
   const randomOffTimeoutRef = useRef<number | null>(null);

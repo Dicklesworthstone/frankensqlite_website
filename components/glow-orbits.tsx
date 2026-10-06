@@ -1,8 +1,9 @@
 "use client";
 
-import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
+import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { useIntersectionObserver } from "@/hooks/use-intersection-observer";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
 export default function GlowOrbits() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -10,16 +11,18 @@ export default function GlowOrbits() {
     threshold: 0,
     triggerOnce: false,
   });
-  const prefersReducedMotion = useReducedMotion();
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
+  const prefersReducedMotion = usePrefersReducedMotion();
+  // -1 means "no pointer position yet" and maps to zero offset, so the first
+  // client render matches the server-rendered HTML (no hydration mismatch).
+  const mouseX = useMotionValue(-1);
+  const mouseY = useMotionValue(-1);
   const springX = useSpring(mouseX, { damping: 50, stiffness: 100 });
   const springY = useSpring(mouseY, { damping: 50, stiffness: 100 });
   const parallaxX = useTransform(springX, (val) =>
-    typeof window === "undefined" ? 0 : (val / window.innerWidth - 0.5) * -60,
+    typeof window === "undefined" || val < 0 ? 0 : (val / window.innerWidth - 0.5) * -60,
   );
   const parallaxY = useTransform(springY, (val) =>
-    typeof window === "undefined" ? 0 : (val / window.innerHeight - 0.5) * -60,
+    typeof window === "undefined" || val < 0 ? 0 : (val / window.innerHeight - 0.5) * -60,
   );
   const spectrum = [
     "#38bdf8",
@@ -34,13 +37,20 @@ export default function GlowOrbits() {
 
   useEffect(() => {
     if (prefersReducedMotion || !isIntersecting) return undefined;
+    // Start from the viewport centre (zero offset) without animating.
+    if (mouseX.get() < 0) {
+      mouseX.jump(window.innerWidth / 2);
+      mouseY.jump(window.innerHeight / 2);
+      springX.jump(window.innerWidth / 2);
+      springY.jump(window.innerHeight / 2);
+    }
     const handleMouseMove = (e: MouseEvent) => {
       mouseX.set(e.clientX);
       mouseY.set(e.clientY);
     };
     window.addEventListener("mousemove", handleMouseMove, { passive: true });
     return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [mouseX, mouseY, isIntersecting, prefersReducedMotion]);
+  }, [mouseX, mouseY, springX, springY, isIntersecting, prefersReducedMotion]);
 
   useEffect(() => {
     if (!rootRef.current || prefersReducedMotion || !isIntersecting) return;

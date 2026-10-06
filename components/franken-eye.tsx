@@ -1,11 +1,12 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 
 export default function FrankenEye({ className }: { className?: string }) {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
   const [isBlinking, setIsBlinking] = useState(false);
   const [isHovered, setIsHovered] = useState(false);

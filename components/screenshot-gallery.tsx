@@ -1,11 +1,12 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, Maximize2, Monitor, X } from "lucide-react";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import type { Screenshot } from "@/lib/content";
 import { cn } from "@/lib/utils";
 import { FrankenContainer } from "./franken-elements";
@@ -50,7 +51,7 @@ export default function ScreenshotGallery({
 }) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [direction, setDirection] = useState(0);
-  const prefersReduced = useReducedMotion();
+  const prefersReduced = usePrefersReducedMotion();
   const isLightboxOpen = lightboxIndex !== null;
   useBodyScrollLock(isLightboxOpen);
 

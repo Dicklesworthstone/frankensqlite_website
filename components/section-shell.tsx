@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Activity,
   BarChart3,
@@ -26,6 +26,7 @@ import {
   Twitter,
   Zap,
 } from "lucide-react";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { cn } from "@/lib/utils";
 import { type BuildStatus, FrankenStitch, StatusBadge } from "./franken-elements";
 import FrankenGlitch from "./franken-glitch";
@@ -88,7 +89,7 @@ export default function SectionShell({
 }: Props) {
   const Icon = icon ? sectionIcons[icon] : undefined;
   const HeadingTag = `h${headingLevel}` as const;
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const skipAnim = forceReveal || prefersReducedMotion;
   const headingId = id ? `${id}-heading` : undefined;
 

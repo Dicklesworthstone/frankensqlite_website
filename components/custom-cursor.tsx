@@ -1,13 +1,8 @@
 "use client";
 
-import {
-  AnimatePresence,
-  type MotionValue,
-  motion,
-  useMotionValue,
-  useReducedMotion,
-} from "framer-motion";
+import { AnimatePresence, type MotionValue, motion, useMotionValue } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
 function prng(seed: number): number {
   const x = Math.sin(seed) * 10000;
@@ -51,7 +46,7 @@ function DataDebris({ x, y }: { x: MotionValue<number>; y: MotionValue<number> }
 }
 
 export default function CustomCursor() {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const [isPointer, setIsPointer] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [isClicking, setIsClicking] = useState(false);

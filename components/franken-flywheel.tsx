@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
   Archive,
@@ -32,6 +32,7 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { Magnetic, Portal } from "@/components/motion-wrapper";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { useHapticFeedback } from "@/hooks/use-haptic-feedback";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { flywheelDescription, flywheelTools } from "@/lib/content";
 import { cn } from "@/lib/utils";
 import { AnimatedNumber } from "./animated-number";
@@ -52,7 +53,7 @@ function BottomSheet({
 }) {
   const sheetRef = useRef<HTMLDivElement>(null);
   const headingId = useId();
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   useBodyScrollLock(isOpen);
 
   useEffect(() => {

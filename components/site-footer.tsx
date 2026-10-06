@@ -1,8 +1,9 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import { Activity, ArrowUp, Github, Twitter } from "lucide-react";
 import Link from "next/link";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { engineSnapshot, navItems, siteConfig } from "@/lib/site-config";
 import { FrankenContainer } from "./franken-elements";
 import FrankenGlitch from "./franken-glitch";
@@ -14,7 +15,7 @@ const socialLinks = [
 ];
 
 export default function SiteFooter() {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const handleBackToTop = () => {
     window.scrollTo({ top: 0, behavior: prefersReducedMotion ? "auto" : "smooth" });

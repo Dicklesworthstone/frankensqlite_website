@@ -1,6 +1,6 @@
 "use client";
 
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useEffect } from "react";
@@ -8,6 +8,7 @@ import ErrorBoundary from "@/components/error-boundary";
 import ScrollToTop from "@/components/scroll-to-top";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { SiteProvider } from "@/lib/site-state";
 
 const CustomCursor = dynamic(() => import("@/components/custom-cursor"), {
@@ -19,7 +20,7 @@ const SignalHUD = dynamic(() => import("@/components/signal-hud"), {
 
 export default function ClientShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = usePrefersReducedMotion();
   const isFullViewport = pathname === "/spec_evolution";
 
   useEffect(() => {

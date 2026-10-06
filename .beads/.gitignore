@@ -9,3 +9,10 @@
 # Temporary
 last-touched
 *.tmp
+
+# FrankenSQLite storage sidecars (br stores its database with fsqlite)
+*.db-fsqlite-ns-gate
+*.db-fsqlite-ns-use
+*.db-wal-cert*
+*.db-wal-fec
+*.db.fsqlite-migration-state

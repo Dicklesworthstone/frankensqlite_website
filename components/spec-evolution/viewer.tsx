@@ -283,7 +283,11 @@ async function loadViewerBootstrap(): Promise<ViewerBootstrap> {
 
 async function getPatch(db: SqlJsDatabase, idx: number): Promise<string> {
   if (patchCache.has(idx)) return patchCache.get(idx)!;
-  const res = db.exec("SELECT patch FROM patches WHERE idx = ?", [idx]);
+  // sql.js 1.14's browser build silently returns no rows for exec() with bound
+  // parameters, which left every patch empty and froze the viewer on the base
+  // document. idx is always a commit index we generated, so inline it.
+  if (!Number.isSafeInteger(idx) || idx < 0) return "";
+  const res = db.exec(`SELECT patch FROM patches WHERE idx = ${idx}`);
   const p = res.length ? (res[0].values[0][0] as string) : "";
   patchCache.set(idx, p);
   return p;
@@ -334,7 +338,10 @@ async function reconstructSnapshot(
 ): Promise<string> {
   if (docCache.has(idx)) return docCache.get(idx)!;
 
-  let startIdx = 0;
+  // base_doc is the snapshot at idx 0 (patch 0 is the diff that created the
+  // file), so replay starts at patch 1. Re-applying patch 0 used to splice a
+  // second copy of the spec into every snapshot.
+  let startIdx = 1;
   let lines = baseDoc.split("\n");
   for (let i = Math.floor(idx / 10) * 10; i >= 0; i -= 10) {
     if (docCache.has(i)) {
@@ -364,7 +371,8 @@ async function computeAllMetrics(
   const allPatches = getAllPatches(db);
   let lines = baseDoc.split("\n");
   for (let i = 0; i < commits.length; i++) {
-    const p = allPatches.get(i) ?? "";
+    // base_doc already is the idx-0 snapshot; patch 0 is the diff that created it.
+    const p = i === 0 ? "" : (allPatches.get(i) ?? "");
     if (p) lines = applySynapticPatch(lines, p);
     const text = lines.join("\n");
     const tokens = text.split(/\s+/).length;

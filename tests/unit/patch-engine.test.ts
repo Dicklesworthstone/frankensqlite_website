@@ -82,6 +82,47 @@ describe("components/spec-evolution/patch-engine.ts", () => {
       const result = applySynapticPatch(lines, patch);
       expect(result).toEqual(["replaced"]);
     });
+
+    it("ignores the empty string left by a patch's trailing newline", () => {
+      const lines = ["a", "b", "c", "d"];
+      // git emits patches ending in "\n"; splitting leaves a trailing "".
+      const patch = "@@ -2,2 +2,2 @@\n-b\n+B\n c\n";
+      expect(applySynapticPatch(lines, patch)).toEqual(["a", "B", "c", "d"]);
+    });
+
+    it('ignores "\\ No newline at end of file" markers', () => {
+      const lines = ["a", "b"];
+      const patch = "@@ -2 +2 @@\n-b\n\\ No newline at end of file\n+B\n\\ No newline at end of file\n";
+      expect(applySynapticPatch(lines, patch)).toEqual(["a", "B"]);
+    });
+
+    it("applies a file-creation hunk (-0,0) to an empty document at the start", () => {
+      const patch = "@@ -0,0 +1,3 @@\n+# Title\n+\n+body\n";
+      expect(applySynapticPatch([], patch)).toEqual(["# Title", "", "body"]);
+    });
+
+    it("inserts a pure-insertion hunk (-a,0) after old line a", () => {
+      const lines = ["one", "two", "three"];
+      expect(applySynapticPatch(lines, "@@ -2,0 +3,1 @@\n+two-and-a-half\n")).toEqual([
+        "one",
+        "two",
+        "two-and-a-half",
+        "three",
+      ]);
+    });
+
+    it("replays a history of trailing-newline patches without drift", () => {
+      // Each patch is the git-style diff of one edit; replaying them must
+      // reproduce the final document exactly, not gain a line per patch.
+      let doc = ["# Spec", "", "one", "two", "three", "four", "five"];
+      const history = [
+        "@@ -3,2 +3,2 @@\n-one\n+ONE\n two\n",
+        "@@ -5,3 +5,4 @@\n three\n+three-and-a-half\n four\n five\n",
+        "@@ -7,2 +7,2 @@\n four\n-five\n+FIVE\n",
+      ];
+      for (const patch of history) doc = applySynapticPatch(doc, patch);
+      expect(doc).toEqual(["# Spec", "", "ONE", "two", "three", "three-and-a-half", "four", "FIVE"]);
+    });
   });
 
   describe("stripMd()", () => {

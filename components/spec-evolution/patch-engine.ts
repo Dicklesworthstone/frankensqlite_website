@@ -14,7 +14,9 @@ export function applySynapticPatch(lines: string[], patch: string): string[] {
       if (m) {
         const os = parseInt(m[1]);
         const oc = parseInt(m[2] || "1");
-        const startPos = os - 1 + offset;
+        // A hunk that removes nothing ("-a,0") inserts *after* old line a, so
+        // "-0,0" (file creation) inserts at the very start.
+        const startPos = (oc === 0 ? os : os - 1) + offset;
         const newSeg: string[] = [];
         i++;
         while (
@@ -23,6 +25,14 @@ export function applySynapticPatch(lines: string[], patch: string): string[] {
           !patchLines[i].startsWith("@@")
         ) {
           const row = patchLines[i];
+          // Not hunk lines: the empty string left by the patch's trailing
+          // newline, and "\ No newline at end of file" markers. Treating them
+          // as context used to insert a stray blank line per patch, which
+          // drifted every later hunk.
+          if ((row === "" && i === patchLines.length - 1) || row.startsWith("\\")) {
+            i++;
+            continue;
+          }
           if (row.startsWith("+")) newSeg.push(row.slice(1));
           else if (!row.startsWith("-")) newSeg.push(row.slice(1));
           i++;

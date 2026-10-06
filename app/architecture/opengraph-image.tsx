@@ -156,7 +156,7 @@ export default function Image() {
               display: "flex",
             }}
           >
-            6 Layers, 26 Crates, MVCC to Storage
+            28 Crates, Page-Level MVCC, Status Labeled
           </div>
         </div>
       </div>

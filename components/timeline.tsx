@@ -48,7 +48,7 @@ export default function Timeline({ items }: { items: ChangelogEntry[] }) {
                   </ul>
                   <div className="mt-10 pt-8 border-t border-white/5 flex items-center justify-between opacity-40 group-hover:opacity-100 transition-opacity">
                     <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">
-                      System Log v0.1
+                      Build Log
                     </span>
                     <div className="flex gap-1.5">
                       <div className="h-1 w-3 rounded-full bg-teal-500 animate-pulse" />

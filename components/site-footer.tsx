@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { Activity, ArrowUp, Github, Twitter } from "lucide-react";
 import Link from "next/link";
-import { navItems, siteConfig } from "@/lib/site-config";
+import { engineSnapshot, navItems, siteConfig } from "@/lib/site-config";
 import { FrankenContainer } from "./franken-elements";
 import FrankenGlitch from "./franken-glitch";
 import { Magnetic } from "./motion-wrapper";
@@ -52,8 +52,8 @@ export default function SiteFooter() {
                   </span>
                 </Link>
                 <p className="text-slate-400 font-medium leading-relaxed max-w-xs text-left">
-                  The monster database engine for Rust. Clean-room SQLite with MVCC concurrency and
-                  self-healing storage.
+                  SQLite rebuilt from scratch in Rust, with page-level MVCC so more than one
+                  connection can write at a time.
                 </p>
               </div>
 
@@ -70,11 +70,18 @@ export default function SiteFooter() {
                     }
                     className="h-1.5 w-1.5 rounded-full bg-teal-500 shadow-[0_0_8px_#14b8a6]"
                   />
-                  <span>All Systems Operational</span>
+                  <span>Pre-1.0 &middot; Active development</span>
                 </div>
                 <div className="flex items-center gap-3 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600">
                   <Activity className="h-3 w-3" />
-                  <span>Engine v0.1.0 Active</span>
+                  <a
+                    href={engineSnapshot.releaseUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:text-teal-400 transition-colors"
+                  >
+                    Engine v{engineSnapshot.version}
+                  </a>
                 </div>
               </div>
             </div>
@@ -172,7 +179,7 @@ export default function SiteFooter() {
           <div className="mt-16 pt-8 border-t border-white/5 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">
               &copy; <span suppressHydrationWarning>{new Date().getFullYear()}</span> Jeffrey
-              Emanuel. MIT License.
+              Emanuel. Engine licensed MIT with an OpenAI/Anthropic rider.
             </p>
             <div className="flex gap-8">
               <span className="text-[10px] font-black text-white/5 uppercase tracking-[0.5em] select-none">

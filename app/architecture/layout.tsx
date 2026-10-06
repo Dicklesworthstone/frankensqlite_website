@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Architecture | FrankenSQLite",
   description:
-    "Deep dive into FrankenSQLite's 26-crate layered workspace, from B-tree storage to MVCC concurrency and RaptorQ self-healing.",
+    "How FrankenSQLite's 28 crates fit together: page-level MVCC with serializable isolation, the WAL and B-tree, and which designs (RaptorQ repair, native mode, merge ladder, encryption) are live versus in progress.",
 };
 
 export default function ArchitectureLayout({ children }: { children: React.ReactNode }) {

@@ -156,7 +156,7 @@ export default function Image() {
               display: "flex",
             }}
           >
-            CARGO ADD FSQLITE. CONCURRENCY FROM COMMIT ONE.
+            INSTALL THE SHELL OR ADD THE CRATE.
           </div>
         </div>
       </div>

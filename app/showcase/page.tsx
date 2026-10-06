@@ -29,8 +29,8 @@ export default function ShowcasePage() {
             </h1>
           </FrankenGlitch>
           <p className="text-lg md:text-xl text-slate-400 font-medium leading-relaxed max-w-2xl">
-            Architecture diagrams and illustrations of the FrankenSQLite system. Every image
-            documents a real aspect of the 26-crate workspace design.
+            Diagrams and artwork from the FrankenSQLite project. Click any image for a closer
+            look.
           </p>
         </div>
       </section>

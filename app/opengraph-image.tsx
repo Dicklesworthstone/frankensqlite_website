@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
+import { engineSnapshot } from "@/lib/site-config";
 
-export const alt = "FrankenSQLite — The Monster Database Engine for Rust";
+export const alt = "FrankenSQLite — SQLite, rebuilt in Rust for concurrent writers";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -255,9 +256,9 @@ export default function Image() {
             }}
           >
             {[
-              { label: "WORKSPACE", val: "26 CRATES" },
-              { label: "CONCURRENCY", val: "MVCC" },
-              { label: "UNSAFE", val: "ZERO" },
+              { label: "WORKSPACE", val: `${engineSnapshot.workspaceCrates} CRATES` },
+              { label: "WRITERS", val: "CONCURRENT" },
+              { label: "ISOLATION", val: "SERIALIZABLE" },
             ].map((stat, i) => (
               <div key={i} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                 <span
@@ -303,7 +304,7 @@ export default function Image() {
             display: "flex",
           }}
         >
-          ORIGIN_PROTOCOL_V0.1.0
+          {`ENGINE_V${engineSnapshot.version}`}
         </span>
         <div
           style={{

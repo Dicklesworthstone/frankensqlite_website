@@ -775,7 +775,7 @@ export const changelog: ChangelogEntry[] = [
     title: "v0.4.9 and native storage",
     items: [
       "v0.4.9 ships on October 3. Its release gate records 25,211 passing test results and 68 failures, each one reviewed and listed in the changelog.",
-      "On main, native-mode WAL work is landing: page groups published through shared durability barriers and sealed transaction handles.",
+      "On main, native-mode WAL work is landing: page groups published through shared durability barriers and sealed transaction handles, plus a feature-gated service that batches native commits so writers share fsyncs. None of it is switched on for ordinary connections yet.",
     ],
   },
 ];

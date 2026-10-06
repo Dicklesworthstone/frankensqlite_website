@@ -308,9 +308,10 @@ export default function ArchitecturePage() {
         <Prose last>
           The design also calls for a dedicated{" "}
           <FrankenJargon term="write-coordinator">write coordinator</FrankenJargon> that batches
-          commits and sequences fsyncs; today that service is scaffolding and the batching is
-          planned work. The visualization below models the live path, including validation
-          failures that send a connection back to retry.
+          commits and sequences fsyncs. On the default path that service is still scaffolding.
+          A feature-gated batching service for native-mode commits has just landed on main, but
+          nothing in the public connection drives it yet. The visualization below models the
+          live path, including validation failures that send a connection back to retry.
         </Prose>
         <WriteCoordinator />
       </Topic>

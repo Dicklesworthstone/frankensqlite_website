@@ -226,7 +226,7 @@ export const jargonDictionary: Record<string, JargonTerm> = {
   "write-coordinator": {
     term: "Write Coordinator",
     short: "A planned single task that would batch commits into the WAL.",
-    long: "In the design, connections hand validated commits to a coordinator, which appends them to the log in order and groups fsyncs. In the current engine, each connection performs its own commit inside a short guarded section instead, and the coordinator service exists only as scaffolding.",
+    long: "In the design, connections hand validated commits to a coordinator, which appends them to the log in order and groups fsyncs. In the current engine, each connection performs its own commit inside a short guarded section instead. The closest working piece is a feature-gated service on main that batches native-mode commits so writers share fsyncs, but no public connection uses it yet.",
     analogy:
       "A kitchen where many cooks prepare dishes at once but one expeditor sends plates out in order.",
     related: ["wal"],

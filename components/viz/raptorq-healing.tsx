@@ -127,6 +127,7 @@ function PageTile({
     <div className="relative">
       <motion.button
         onClick={onClick}
+        aria-label={`Page ${page.id}, ${page.status}`}
         className={`relative w-full aspect-square min-h-[44px] rounded-lg border ${statusColors[page.status]} flex flex-col items-center justify-center gap-1 transition-colors cursor-pointer select-none overflow-hidden`}
         whileHover={prefersReducedMotion ? undefined : { scale: 1.05 }}
         whileTap={prefersReducedMotion ? undefined : { scale: 0.95 }}

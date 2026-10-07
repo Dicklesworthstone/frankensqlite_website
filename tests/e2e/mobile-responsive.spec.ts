@@ -1,32 +1,39 @@
-import { expect, test } from "@playwright/test";
-import { captureConsole, waitForHydration } from "./helpers";
+import { expect, test, type Page } from "@playwright/test";
+import {
+  assertNoConsoleErrors,
+  captureConsole,
+  scrollToSection,
+  serveSqlJsLocally,
+  waitForHydration,
+} from "./helpers";
 
 /**
- * Mobile responsive tests — run against the mobile-chrome project (375px).
- * Verifies layout, touch targets, and no horizontal overflow.
+ * Mobile responsive tests. Most groups pin a 375px viewport, so they check the
+ * phone layout whichever project runs them.
  */
 
 const SECTIONS = [
+  "status",
   "the-problem",
   "how-it-works",
   "physical-layout",
-  "durability",
-  "self-healing",
   "conflict-resolution",
+  "durability",
+  "observability",
   "safety",
-  "encryption",
   "pipeline",
+  "code",
+  "self-healing",
+  "ecs-stream",
+  "safe-merge-ladder",
+  "encryption",
+  "comparison",
+  "crates",
+  "how-it-was-built",
+  "timeline",
 ] as const;
 
-async function scrollToSection(page: import("@playwright/test").Page, sectionId: string) {
-  await page.locator(`#${sectionId}`).scrollIntoViewIfNeeded();
-  await page.waitForTimeout(1000);
-}
-
-/**
- * Check that the page has no horizontal overflow at the given viewport.
- */
-async function assertNoHorizontalOverflow(page: import("@playwright/test").Page) {
+async function assertNoHorizontalOverflow(page: Page) {
   const overflow = await page.evaluate(() => {
     return document.documentElement.scrollWidth > window.innerWidth;
   });
@@ -40,13 +47,15 @@ async function assertNoHorizontalOverflow(page: import("@playwright/test").Page)
 test.describe("Mobile Navigation", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test("bottom nav bar is visible", async ({ page }) => {
+  test("bottom nav bar is visible and the desktop nav is not", async ({ page }) => {
     await page.goto("/");
     await waitForHydration(page);
 
-    // The mobile bottom nav should be visible
-    const bottomNav = page.locator("nav").filter({ has: page.locator("a") });
-    await expect(bottomNav.first()).toBeVisible({ timeout: 10000 });
+    const bottomNav = page.getByRole("navigation", { name: "Main (mobile)" });
+    await expect(bottomNav).toBeVisible({ timeout: 10000 });
+    expect(await bottomNav.getByRole("link").count()).toBeGreaterThanOrEqual(3);
+
+    await expect(page.getByRole("navigation", { name: "Main", exact: true })).toBeHidden();
   });
 
   test("no horizontal overflow on homepage", async ({ page }) => {
@@ -67,7 +76,6 @@ test.describe("Homepage Mobile Layout", () => {
     await page.goto("/");
     await waitForHydration(page);
 
-    // Hero heading should be visible and not overflow
     const heroHeading = page.locator("h1").first();
     await expect(heroHeading).toBeVisible({ timeout: 10000 });
 
@@ -81,21 +89,17 @@ test.describe("Homepage Mobile Layout", () => {
     await page.goto("/");
     await waitForHydration(page);
 
-    // The CTA button group should use flex-col on mobile
-    const ctaLinks = page.locator("a").filter({ hasText: /Get Started|GitHub/ });
-    const firstLink = ctaLinks.first();
-    const secondLink = ctaLinks.nth(1);
+    const main = page.locator("main");
+    const getStarted = main.getByRole("link", { name: /get started/i }).first();
+    const viewSource = main.getByRole("link", { name: /view source/i }).first();
+    await expect(getStarted).toBeVisible({ timeout: 10000 });
+    await expect(viewSource).toBeVisible({ timeout: 10000 });
 
-    await expect(firstLink).toBeVisible({ timeout: 10000 });
-    await expect(secondLink).toBeVisible({ timeout: 10000 });
-
-    const box1 = await firstLink.boundingBox();
-    const box2 = await secondLink.boundingBox();
-
-    if (box1 && box2) {
-      // On mobile, buttons should be stacked (second button below first)
-      expect(box2.y).toBeGreaterThan(box1.y);
-    }
+    const box1 = await getStarted.boundingBox();
+    const box2 = await viewSource.boundingBox();
+    expect(box1).toBeTruthy();
+    expect(box2).toBeTruthy();
+    expect(box2!.y).toBeGreaterThanOrEqual(box1!.y + box1!.height);
   });
 
   for (const sectionId of SECTIONS) {
@@ -109,7 +113,6 @@ test.describe("Homepage Mobile Layout", () => {
 
       const box = await section.boundingBox();
       expect(box).toBeTruthy();
-      // Section should not be wider than viewport
       expect(box!.width).toBeLessThanOrEqual(375 + 5);
     });
   }
@@ -128,35 +131,32 @@ test.describe("Visualization Mobile Stacking", () => {
     await scrollToSection(page, "the-problem");
 
     const section = page.locator("#the-problem");
+    const single = section.getByText("Single Writer Lock", { exact: true });
+    const mvcc = section.getByText("Page-Level MVCC Writers", { exact: true });
+    await expect(single).toBeVisible({ timeout: 10000 });
+    await expect(mvcc).toBeVisible({ timeout: 10000 });
 
-    // Both panels should be visible
-    const cSqlite = section.getByText("C SQLite").first();
-    const franken = section.getByText("FrankenSQLite").first();
-    await expect(cSqlite).toBeVisible({ timeout: 10000 });
-    await expect(franken).toBeVisible({ timeout: 10000 });
-
-    // On mobile, panels should be stacked (grid-cols-1)
-    const cBox = await cSqlite.boundingBox();
-    const fBox = await franken.boundingBox();
-    if (cBox && fBox) {
-      // FrankenSQLite panel should be below C SQLite panel
-      expect(fBox.y).toBeGreaterThan(cBox.y);
-    }
+    const singleBox = await single.boundingBox();
+    const mvccBox = await mvcc.boundingBox();
+    expect(singleBox).toBeTruthy();
+    expect(mvccBox).toBeTruthy();
+    expect(mvccBox!.y).toBeGreaterThan(singleBox!.y + singleBox!.height);
   });
 
   test("stepper buttons meet 44px minimum tap target", async ({ page }) => {
     await page.goto("/");
     await waitForHydration(page);
-    await scrollToSection(page, "how-it-works");
+    await scrollToSection(page, "physical-layout");
 
-    const section = page.locator("#how-it-works");
-    const nextBtn = section.getByRole("button", { name: "Next step" });
-    await expect(nextBtn).toBeVisible({ timeout: 10000 });
-
-    const box = await nextBtn.boundingBox();
-    expect(box).toBeTruthy();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    const section = page.locator("#physical-layout");
+    for (const name of ["Previous step", "Next step"]) {
+      const btn = section.getByRole("button", { name });
+      await expect(btn).toBeVisible({ timeout: 10000 });
+      const box = await btn.boundingBox();
+      expect(box).toBeTruthy();
+      expect(box!.width).toBeGreaterThanOrEqual(44);
+      expect(box!.height).toBeGreaterThanOrEqual(44);
+    }
   });
 });
 
@@ -171,11 +171,13 @@ for (const viewport of [
   test.describe(`Layout at ${viewport.name} (${viewport.width}px)`, () => {
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
-    test("no horizontal overflow", async ({ page }) => {
-      await page.goto("/");
-      await waitForHydration(page);
-      await assertNoHorizontalOverflow(page);
-    });
+    for (const route of ["/", "/architecture", "/getting-started", "/showcase"]) {
+      test(`no horizontal overflow on ${route}`, async ({ page }) => {
+        await page.goto(route);
+        await waitForHydration(page);
+        await assertNoHorizontalOverflow(page);
+      });
+    }
 
     test("hero renders correctly", async ({ page }) => {
       await page.goto("/");
@@ -198,21 +200,15 @@ for (const viewport of [
 test.describe("Spec Evolution Mobile", () => {
   test.use({ viewport: { width: 375, height: 812 } });
 
-  test("page loads without horizontal overflow", async ({ page }) => {
+  test("loads the spec history without horizontal overflow", async ({ page }) => {
     const consoleLogs = captureConsole(page);
+    await serveSqlJsLocally(page);
     await page.goto("/spec_evolution");
-    await waitForHydration(page);
 
-    // Wait extra time for sql.js WASM to load
-    await page.waitForTimeout(3000);
-
+    // The KPI header is hidden on phones; wait for the rendered spec instead.
+    await expect(page.locator(".spec-content h1").first()).toBeVisible({ timeout: 30000 });
     await assertNoHorizontalOverflow(page);
-
-    // Filter out hydration warnings
-    const realErrors = consoleLogs.filter(
-      (e) => e.type === "error" && !e.text.includes("hydrat") && !e.text.includes("Hydrat"),
-    );
-    expect(realErrors).toHaveLength(0);
+    assertNoConsoleErrors(consoleLogs);
   });
 });
 
@@ -226,20 +222,13 @@ test.describe("Comparison Table Mobile", () => {
   test("shows card layout on mobile (not table)", async ({ page }) => {
     await page.goto("/");
     await waitForHydration(page);
+    await scrollToSection(page, "comparison");
 
-    // Scroll to comparison section
-    const comparisonHeading = page.getByText("How It Compares").first();
-    await comparisonHeading.scrollIntoViewIfNeeded();
-    await page.waitForTimeout(1000);
-
-    // On mobile, the table should be hidden (md:block)
-    // and the card layout should be visible (md:hidden)
-    // Check that we can see card-style content
-    const featureText = page.getByText("Concurrent Writers").first();
-    await expect(featureText).toBeVisible({ timeout: 10000 });
-
-    // The mobile cards should show engine names in a grid
-    const frankenLabel = page.getByText("FrankenSQLite").first();
-    await expect(frankenLabel).toBeVisible({ timeout: 10000 });
+    const section = page.locator("#comparison");
+    await expect(section.locator("table")).toBeHidden();
+    // The same row text also sits in the hidden table, so only count visible matches.
+    const card = section.getByText("Concurrent writers", { exact: true }).filter({ visible: true });
+    await expect(card).toHaveCount(1, { timeout: 10000 });
+    await expect(section.getByText("FrankenSQLite").filter({ visible: true }).first()).toBeVisible();
   });
 });

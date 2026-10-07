@@ -93,7 +93,7 @@ export default function SiteFooter() {
                 <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">
                   Library
                 </h4>
-                <nav className="flex flex-col gap-4">
+                <nav aria-label="Site pages" className="flex flex-col gap-4">
                   {navItems.map((item) => (
                     <Link
                       key={item.href}
@@ -109,7 +109,7 @@ export default function SiteFooter() {
                 <h4 className="text-[10px] font-black uppercase tracking-[0.4em] text-white/20">
                   Resources
                 </h4>
-                <nav className="flex flex-col gap-4">
+                <nav aria-label="Resources" className="flex flex-col gap-4">
                   <a
                     href={siteConfig.github}
                     target="_blank"

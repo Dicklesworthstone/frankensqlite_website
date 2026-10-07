@@ -3,23 +3,17 @@ import { engineSnapshot } from "../../lib/site-config";
 import {
   assertNoConsoleErrors,
   captureConsole,
+  serveSqlJsLocally,
   takeAnnotatedScreenshot,
   waitForHydration,
 } from "./helpers";
 
 /**
- * Assert no real console errors, filtering out React hydration mismatch
- * warnings caused by framer-motion transforms differing between SSR and client.
+ * What public/spec_evolution_v1.sqlite3 holds. Update these when the dataset
+ * is regenerated. Replaying every patch must land on the engine's current
+ * spec; a drifting patch engine shows up here as a wrong line count.
  */
-function assertNoRealConsoleErrors(entries: ReturnType<typeof captureConsole>) {
-  const realErrors = entries.filter(
-    (e) => e.type === "error" && !e.text.includes("hydrat") && !e.text.includes("Hydrat"),
-  );
-  if (realErrors.length > 0) {
-    const errorMessages = realErrors.map((e) => `  - ${e.text}`).join("\n");
-    expect(realErrors, `Console errors detected:\n${errorMessages}`).toHaveLength(0);
-  }
-}
+const SPEC_DATASET = { commits: 144, latestLines: "18,232" };
 
 test.describe("Route smoke tests", () => {
   test("/ - Homepage loads with key content", async ({ page }) => {
@@ -33,15 +27,16 @@ test.describe("Route smoke tests", () => {
     // Stats section renders (appears in multiple spots, use .first())
     await expect(page.getByText("Workspace Crates").first()).toBeVisible();
 
-    // Navigation exists (multiple nav elements: header, mobile dock, footer)
-    await expect(page.locator("nav").first()).toBeVisible();
+    // Exactly one main navigation shows: the header on desktop, the dock on phones
+    await expect(
+      page.getByRole("navigation", { name: /^Main/ }).filter({ visible: true }),
+    ).toHaveCount(1);
 
     // CTA buttons
     await expect(page.getByRole("link", { name: /get started/i }).first()).toBeVisible();
 
     await takeAnnotatedScreenshot(page, "home");
-    // Homepage uses framer-motion GlowOrbits which causes benign hydration mismatch
-    assertNoRealConsoleErrors(consoleLogs);
+    assertNoConsoleErrors(consoleLogs);
   });
 
   test("/architecture - Architecture page loads", async ({ page }) => {
@@ -102,42 +97,20 @@ test.describe("Route smoke tests", () => {
     assertNoConsoleErrors(consoleLogs);
   });
 
-  test("/spec_evolution - Spec Evolution page loads SQLite", async ({ page }) => {
+  test("/spec_evolution - loads the database and replays the whole history", async ({ page }) => {
     const consoleLogs = captureConsole(page);
+    await serveSqlJsLocally(page);
     await page.goto("/spec_evolution");
-    // Give extra time for sql.js WASM to load
-    await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(3000);
 
-    // The page should have loaded and show the viewer UI
-    await expect(page.locator("body")).toBeVisible();
-
-    // Check for loading text or the brand text that appears after load
-    const brandVisible = await page
-      .getByText("Spec Evolution Lab")
-      .isVisible()
-      .catch(() => false);
-    const loadingVisible = await page
-      .getByText("Reanimating Neural Pathways")
-      .isVisible()
-      .catch(() => false);
-
-    // Either the viewer loaded or is still loading - both are acceptable
-    expect(
-      brandVisible || loadingVisible || true,
-      "Page should have rendered something",
-    ).toBeTruthy();
+    const kpi = (label: string) =>
+      page.locator(".spec-viewer-kpi").filter({ hasText: label }).locator(".spec-viewer-kpi-value");
+    await expect(kpi("Commits")).toHaveText(String(SPEC_DATASET.commits), { timeout: 30000 });
+    // The viewer opens on the latest entry, so this is the fully replayed spec.
+    await expect(kpi("Lines")).toHaveText(SPEC_DATASET.latestLines);
+    await expect(page.locator(".spec-content h1").first()).toBeVisible();
 
     await takeAnnotatedScreenshot(page, "spec-evolution");
-
-    // Allow console warnings for WASM loading but no errors
-    const errors = consoleLogs.filter((e) => e.type === "error");
-    // Be lenient with spec evolution - WASM loading may produce some noise
-    if (errors.length > 0) {
-      for (const err of errors) {
-        console.log(`Spec evolution console error (may be benign): ${err.text}`);
-      }
-    }
+    assertNoConsoleErrors(consoleLogs);
   });
 
   test("navigation between pages works", async ({ page }) => {
@@ -145,17 +118,16 @@ test.describe("Route smoke tests", () => {
     await page.goto("/");
     await waitForHydration(page);
 
-    // Click Architecture link in header nav
+    // Use whichever main navigation is showing (the mobile dock uses short labels)
     await page
-      .locator("header")
-      .getByRole("link", { name: /Architecture/i })
-      .first()
+      .getByRole("navigation", { name: /^Main/ })
+      .filter({ visible: true })
+      .locator('a[href="/architecture"]')
       .click();
     await expect(page).toHaveURL(/architecture/, { timeout: 10000 });
     await expect(page.locator("h1").first()).toContainText(/Architecture/i);
 
-    // Homepage uses framer-motion GlowOrbits which causes benign hydration mismatch
-    assertNoRealConsoleErrors(consoleLogs);
+    assertNoConsoleErrors(consoleLogs);
   });
 
   test("no broken images on homepage", async ({ page }) => {

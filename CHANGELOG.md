@@ -164,6 +164,71 @@ The DataDebris component (floating hex/binary characters near code blocks) passe
 
 ---
 
+## Spring and Summer Refresh (2026-04-10 through 2026-09-22)
+
+- [`ccb3081`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/ccb3081f3a74745d07a8556bd488e74dea2ef444) -- Spec viewer filtered navigation uses direct lookup maps.
+- [`ac5d33c`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/ac5d33cd87678d5aacf003612630833361a1493f), [`de7d6de`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/de7d6dee3d9c1f1b920a77b0302866ddc65ce348), [`292528f`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/292528f5dec21fc9189f288f2220f179448d5d05) -- A large refresh of the landing page, architecture page, OG images, site chrome and visualizations, plus content helpers, hooks and config.
+- [`e616fb7`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/e616fb782c2040865ccb612e5950033817a28e3f) -- Playwright and Vitest coverage aligned with the refreshed components.
+- [`47a6aab`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/47a6aabaeb39ce83ee4a2b6fa079491420fc8e57) -- Formatting only.
+- Repository housekeeping: `.gitignore` patterns ([`c65948a`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/c65948a8017618eec34f225de08f15233ad3920b), [`df57642`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/df5764255813ceac20afffd7f560917d625d7b96)), AGENTS.md updates ([`26000a9`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/26000a9e10545279d0d878283282b618eff40741), [`361cdb7`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/361cdb7a68d64878dbb1f971a7362fe0599f7638)), the changelog itself ([`b9d7719`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b9d7719556e704f0ecef1db8ea03afe5e50aabc1), [`ab2d043`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/ab2d043b81ecdc174b5a34c438b15a854fb21355)) and beads metadata ([`d21491f`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/d21491fb6b4f157c0144d7b1272c8f090ffacd2a)).
+
+---
+
+## Engine Sync (2026-10-06 through 2026-10-07)
+
+By October the site described the engine's designs as shipped features and showed an API the engine no longer has. This pass checked every claim against engine v0.4.9 and `main`. Features that are not live keep their place on the site with a status label instead of being deleted.
+
+### Content matches engine v0.4.9
+
+[`b4c5dca`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b4c5dca72619a755e3540e75d1708d0b0770a708), [`86c8015`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/86c8015968ac501dfaacbf996c62bab4d840b307), [`f0502f8`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/f0502f880df0af20da71b2da17efb235bb7b8d55), [`af3a31d`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/af3a31dc6d5da76acc6f4fb2b45831ad50dc5f62), [`8e2615a`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/8e2615ad250f0ebda2723a7e4627b664d443fb4e)
+
+- Code examples use the async API on asupersync 0.5. Install instructions cover `install.sh` and `cargo +nightly install fsqlite-cli`.
+- 28 workspace crates (26 published). `unsafe` is allowed in `fsqlite-vfs` and `fsqlite-c-api` only, rather than "zero unsafe".
+- Plain `BEGIN` is promoted to `BEGIN CONCURRENT` and SSI is on by default. Same-page conflicts return `SQLITE_BUSY_SNAPSHOT`, and each connection commits under a registry guard with no live write coordinator.
+- Every feature, comparison cell and architecture topic carries a status: live, partial, built but not wired, or research. RaptorQ recovery, the merge ladder, encryption, native mode and the adaptive indexing work are labeled honestly.
+- Interop caveats were added: don't open one file with two engines, `PRAGMA key` is not wired, and RaptorQ symbols go to a `<db>-wal-fec` sidecar that recovery does not read yet.
+- Performance numbers were removed until there are current ones. The comparison table gained a Turso column.
+- The engine's feature-gated native commit batching service, which landed on `main` the day after v0.4.9, is described as present but not used by ordinary connections.
+
+### Pages restructured around real status
+
+[`ab00858`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/ab008580a57aca42216c3b4b0167449a59339e69), [`285b184`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/285b1845d9db1d228cb1f4923d127413502c46e6)
+
+- Homepage: a "Where It Stands" status board linked from the hero, live features first, an "On the workbench" divider before unwired designs, and a "How It Was Built" section.
+- Architecture: topics grouped into the live engine, on the bench, research and verification. The query-path flythrough is wired in and models the live read path.
+- Getting started: the CLI, the crate, a quickstart, concurrent writers with bounded retries, PRAGMAs, time travel, and a "What not to rely on yet" list.
+
+### Visualizations fact-checked
+
+[`e9db609`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/e9db60996cfe34c65bfbf97acf6c8825a569860f), [`6b595db`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/6b595dbed489cdf9452b2ce5c1a69a967540f94b), [`c16b163`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/c16b163bc6088b0602d98b1b530bd1cda19bff4a), [`abb5d1c`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/abb5d1cee918fd982f8568cfd36985a5a795ecda)
+
+Each demo now models what the engine does: the concurrency demos follow the real commit path, simulated throughput is labeled as simulated, and research and verification demos show their status.
+
+### Hydration and accessibility
+
+[`6413a02`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/6413a02676371ff4b68463b3ce7f55ab496f0600), [`b1af645`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b1af6452533579ff83d16aa8034b21b0c9c7cd67), [`b9cd205`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b9cd205c2e92a436b2a54e4536bb2dfde43a3921)
+
+- Glossary popovers render as spans, ending the `<div>`-inside-`<p>` hydration error.
+- Reduced-motion preferences are read through `useSyncExternalStore`, so visitors with reduced motion no longer get hydration failures.
+- Navigation landmarks have labels, and the RaptorQ demo's page tiles announce their state.
+
+### Spec evolution viewer
+
+[`a0a0b4f`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/a0a0b4fec646c42dc7c95ff482096633de8692ac), [`925f5f4`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/925f5f4fe6b93af83d584051960dbeb77722b7c8), [`15eb485`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/15eb4854574b1c136d55c336ff8f820001a118ca)
+
+- Three bugs had frozen the spec tab at 8,629 lines on every entry. sql.js in the browser returned no rows for bound parameters, the file-creation patch was applied a second time on top of the base document, and the patch engine inserted a blank line per patch, which shifted every later hunk.
+- The dataset was extended from 137 to 144 commits, covering the Feb 25, Aug 3 and Sept 5 spec revisions. Replaying all patches reproduces the engine's current spec (18,232 lines) exactly.
+- The diagnostics charts have titles, readable dates and tooltips.
+
+### Tests and docs
+
+[`3fd9996`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/3fd999607098c002c62d4a216231360f0b82e0cc), [`b9cd205`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b9cd205c2e92a436b2a54e4536bb2dfde43a3921)
+
+- README explains how the site stays in sync with the engine.
+- The Playwright suite targets the current pages. The spec viewer test loads the real database and checks the replayed line count; before this it passed even when nothing loaded. The suite no longer exempts hydration errors from console checks, and sql.js is served from `node_modules` so it doesn't depend on the CDN.
+
+---
+
 ## Issue Tracker Housekeeping (beads)
 
 These commits update the `.beads/issues.jsonl` issue tracker metadata. They carry no production code changes.
@@ -179,7 +244,7 @@ These commits update the `.beads/issues.jsonl` issue tracker metadata. They carr
 
 ## Full Commit Index
 
-All 17 commits in chronological order.
+All 48 commits through b9cd205, in chronological order.
 
 | # | Date | Hash | Type | Summary |
 |---|---|---|---|---|
@@ -200,3 +265,34 @@ All 17 commits in chronological order.
 | 15 | 2026-02-28 | [`c8b2649`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/c8b2649378ac49d7536791b108ea2c7aa742f9cf) | chore | Sync issue tracker -- filtered navigation optimization |
 | 16 | 2026-02-28 | [`26c477b`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/26c477b65412022519e97373bd73b731e6eed316) | perf | Cache dynamic imports as singleton promises; parallel loading |
 | 17 | 2026-03-16 | [`13d7dc3`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/13d7dc37a328b9e97badbfbda6cebe20a65f9ff5) | fix | Stop DataDebris particles from corrupting shared mouse MotionValues |
+| 18 | 2026-03-21 | [`b9d7719`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b9d7719556e704f0ecef1db8ea03afe5e50aabc1) | docs | Add comprehensive CHANGELOG.md documenting project history |
+| 19 | 2026-03-21 | [`ab2d043`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/ab2d043b81ecdc174b5a34c438b15a854fb21355) | docs | Rebuild CHANGELOG.md from git history with live commit links |
+| 20 | 2026-04-10 | [`ccb3081`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/ccb3081f3a74745d07a8556bd488e74dea2ef444) | perf | Optimize filtered navigation with direct lookup maps |
+| 21 | 2026-04-10 | [`c65948a`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/c65948a8017618eec34f225de08f15233ad3920b) | chore | Add .bv/ and .claude/settings.local.json to .gitignore |
+| 22 | 2026-04-11 | [`df57642`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/df5764255813ceac20afffd7f560917d625d7b96) | chore | Add ephemeral/agent-scratch patterns observed during ru sweep |
+| 23 | 2026-08-21 | [`26000a9`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/26000a9e10545279d0d878283282b618eff40741) | docs | Require OpenAI File Downloader user-agent on curl/web fetches |
+| 24 | 2026-09-21 | [`47a6aab`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/47a6aabaeb39ce83ee4a2b6fa079491420fc8e57) | style | Format layout, sitemap, and shared viz chrome |
+| 25 | 2026-09-21 | [`ac5d33c`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/ac5d33cd87678d5aacf003612630833361a1493f) | feat | Refresh landing, OG images, and architecture pages |
+| 26 | 2026-09-21 | [`de7d6de`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/de7d6dee3d9c1f1b920a77b0302866ddc65ce348) | feat | Update site chrome and frankensqlite viz widgets |
+| 27 | 2026-09-21 | [`e616fb7`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/e616fb782c2040865ccb612e5950033817a28e3f) | test | Align Playwright/Vitest coverage with current site components |
+| 28 | 2026-09-21 | [`292528f`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/292528f5dec21fc9189f288f2220f179448d5d05) | chore | Update content helpers, hooks, and Next/Playwright config |
+| 29 | 2026-09-21 | [`d21491f`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/d21491fb6b4f157c0144d7b1272c8f090ffacd2a) | chore | Add trailing newline to beads metadata |
+| 30 | 2026-09-22 | [`361cdb7`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/361cdb7a68d64878dbb1f971a7362fe0599f7638) | docs | Synchronize suite-wide rules and canonical multi-agent conventions |
+| 31 | 2026-10-06 | [`b4c5dca`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b4c5dca72619a755e3540e75d1708d0b0770a708) | fix | Sync site with the engine's real status and API |
+| 32 | 2026-10-06 | [`86c8015`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/86c8015968ac501dfaacbf996c62bab4d840b307) | fix | Correct footer, OG images and page metadata |
+| 33 | 2026-10-06 | [`ab00858`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/ab008580a57aca42216c3b4b0167449a59339e69) | feat | Restructure homepage and architecture page around real status |
+| 34 | 2026-10-06 | [`f0502f8`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/f0502f880df0af20da71b2da17efb235bb7b8d55) | fix | Add interop safety caveats and drop live-WAL sharing claims |
+| 35 | 2026-10-06 | [`e9db609`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/e9db60996cfe34c65bfbf97acf6c8825a569860f) | fix | Make safety, newtype, VDBE, telemetry and varint demos accurate |
+| 36 | 2026-10-06 | [`6b595db`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/6b595dbed489cdf9452b2ce5c1a69a967540f94b) | fix | Make RaptorQ, ECS, storage-mode, encryption and WAL-index demos accurate |
+| 37 | 2026-10-06 | [`6413a02`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/6413a02676371ff4b68463b3ce7f55ab496f0600) | fix | Render glossary popovers with spans to stop hydration errors |
+| 38 | 2026-10-06 | [`3fd9996`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/3fd999607098c002c62d4a216231360f0b82e0cc) | docs | Explain how the site stays in sync with the engine |
+| 39 | 2026-10-06 | [`c16b163`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/c16b163bc6088b0602d98b1b530bd1cda19bff4a) | fix | Make concurrency demos model the engine's real commit path |
+| 40 | 2026-10-06 | [`abb5d1c`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/abb5d1cee918fd982f8568cfd36985a5a795ecda) | fix | Label research and verification demos with their real status |
+| 41 | 2026-10-06 | [`af3a31d`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/af3a31dc6d5da76acc6f4fb2b45831ad50dc5f62) | fix | Tighten timeline wording to match the record |
+| 42 | 2026-10-06 | [`b1af645`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b1af6452533579ff83d16aa8034b21b0c9c7cd67) | fix | Stop hydration failures for reduced-motion visitors |
+| 43 | 2026-10-06 | [`a0a0b4f`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/a0a0b4fec646c42dc7c95ff482096633de8692ac) | fix | Make the spec tab actually show each version of the spec |
+| 44 | 2026-10-06 | [`925f5f4`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/925f5f4fe6b93af83d584051960dbeb77722b7c8) | feat | Extend the dataset through the Sept 2026 spec revisions |
+| 45 | 2026-10-06 | [`285b184`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/285b1845d9db1d228cb1f4923d127413502c46e6) | feat | Wire in the query-path flythrough; link hero to status |
+| 46 | 2026-10-06 | [`15eb485`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/15eb4854574b1c136d55c336ff8f820001a118ca) | fix | Label the diagnostics charts and make their tooltips useful |
+| 47 | 2026-10-06 | [`8e2615a`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/8e2615ad250f0ebda2723a7e4627b664d443fb4e) | docs | Note the native commit batching service that landed on main |
+| 48 | 2026-10-07 | [`b9cd205`](https://github.com/Dicklesworthstone/frankensqlite_website/commit/b9cd205c2e92a436b2a54e4536bb2dfde43a3921) | test | Realign the Playwright suite with the current pages |

@@ -586,4 +586,4 @@ The site is entirely static with no external API dependencies for core functiona
 | `next.config.ts` | Next.js configuration |
 | `public/spec_evolution_v1.sqlite3` | SQLite database loaded in-browser by spec viewer |
 
-For any web requests you must make with curl or otherwise, always set your user agent string to be "OpenAI File Downloader, XaiImageApiFetch/1.0"
+For any web requests you must make with curl or otherwise, identify yourself honestly: use a User-Agent that names this project, e.g. "frankensqlite_website-agent (+https://github.com/Dicklesworthstone/frankensqlite_website)". Never borrow another product's or company's crawler or client User-Agent, and never spoof a client to get past a block.

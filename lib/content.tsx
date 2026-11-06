@@ -776,6 +776,16 @@ export const changelog: ChangelogEntry[] = [
     items: [
       "v0.4.9 ships on October 3. Its release gate records 25,211 passing test results and 68 failures, each one reviewed and listed in the changelog.",
       "On main, native-mode WAL work is landing: page groups published through shared durability barriers and sealed transaction handles, plus a feature-gated service that batches native commits so writers share fsyncs. None of it is switched on for ordinary connections yet.",
+      "v0.4.10 follows on October 7 with a data-integrity advisory: inserts inside a transaction could silently corrupt a table b-tree, and UPDATE ... FROM lost or repeated updates. v0.4.12, on October 13, fixes two defects v0.4.10 introduced: a join that returned no rows, and row loss on :memory: databases with autocommit_retain = OFF.",
+    ],
+  },
+  {
+    period: "Nov 2026",
+    title: "v0.4.13 and more data-integrity fixes",
+    items: [
+      "v0.4.13 ships on November 1 for all 26 public crates. Among its fixes: an unparenthesized column DEFAULT swallowed a following NOT NULL or COLLATE, also on schemas stock SQLite created, and concurrent writers could commit duplicate implicit rowids.",
+      "Its release gate ran the complete storage and SQL crate suites plus every integration target changed since v0.4.12: 18,126 passing test results, 18 of which returned early at an environment check, and 4 failures, each explained in the changelog. Integration targets unchanged since v0.4.12 were not rerun.",
+      "The native WAL stack gains recovery, page snapshots and replica catch-up, none of it reachable from the public Connection yet.",
     ],
   },
 ];

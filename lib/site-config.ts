@@ -26,14 +26,14 @@ export const navItems = [
  * together.
  */
 export const engineSnapshot = {
-  version: "0.4.9",
-  releasedOn: "October 3, 2026",
-  checkedOn: "October 6, 2026",
+  version: "0.4.13",
+  releasedOn: "November 1, 2026",
+  checkedOn: "November 6, 2026",
   sqliteTarget: "3.52.0",
   workspaceCrates: 28,
   publishedCrates: 26,
   firstCommit: "February 6, 2026",
-  releaseUrl: "https://github.com/Dicklesworthstone/frankensqlite/releases/tag/v0.4.9",
+  releaseUrl: "https://github.com/Dicklesworthstone/frankensqlite/releases/tag/v0.4.13",
   changelogUrl: "https://github.com/Dicklesworthstone/frankensqlite/blob/main/CHANGELOG.md",
   readmeStatusUrl:
     "https://github.com/Dicklesworthstone/frankensqlite#current-implementation-status",
